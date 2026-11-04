@@ -429,7 +429,8 @@ class SafeJoinTest(unittest.TestCase):
     def test_climbing_out_is_refused(self):
         with self.assertRaises(regfprobe.RegfError):
             regfprobe._safe_join('/tmp/x', 'vol', '../../etc/passwd')  # pylint: disable=protected-access
-        self.assertTrue(regfprobe._safe_join('/tmp/x', 'vol', '/Windows/SYSTEM').endswith('vol/Windows/SYSTEM'))  # pylint: disable=protected-access
+        self.assertEqual(regfprobe._safe_join('/tmp/x', 'vol', '/Windows/SYSTEM'),  # pylint: disable=protected-access
+                         os.path.join('/tmp/x', 'vol', 'Windows', 'SYSTEM'))
 
 
 if __name__ == '__main__':

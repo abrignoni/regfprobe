@@ -304,7 +304,7 @@ class Window:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         # menu item's own key equivalent, drawn with the macOS symbols (tkMacOSXMenu.c,
         # ParseAccelerator, which accepts Cmd/Command/Shift and '-' or '+'), and leaves running
         # the command to the bindings made in _shortcuts (TKMenu performKeyEquivalent).
-        menubar = tk.Menu(self.root)
+        menubar = tk.Menu(self.root, tearoff=False)   # a menu bar has no tear-off entry
         if _MAC:
             app = tk.Menu(menubar, name='apple')
             app.add_command(label='About regfprobe', command=self.about)
