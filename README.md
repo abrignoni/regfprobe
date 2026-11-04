@@ -95,9 +95,15 @@ window's own bindings (moving in the tree, the key bar, a bad path, copying, sor
 the tab shortcuts, the timeline, Tab, Esc) and checks 22 results. The shortcuts that open a file
 dialog, and Shift+F10, are checked only for being bound, since what they open waits for a person. All passed on macOS 27 with Python 3.12 (Tk
 8.6) and on Windows 11 ARM64 with Python 3.11 (Tk 8.6), where the window was also captured on
-the desktop. CI runs it on the Windows jobs. Not tested: a screen reader. Tk's support for
-screen readers is limited on every platform, and that is the cost of a window that needs
-nothing installed.
+the desktop. CI runs it on the Windows jobs.
+
+The window does not work with a screen reader. Its accessibility tree was read with the
+platform's own interface (no screen reader was run): on macOS 27 with Python 3.12 (Tk 8.6) it
+held only the window's title and its three title-bar buttons, though the menu bar is the native
+one and its items were listed. On Windows 11 ARM64 with Python 3.11 (Tk 8.6), UI Automation
+showed 25 panes with no names and no menu. Tk 9.1 adds screen reader support to its widgets
+(TIP 733); no Python available here ships it, so it is untested. With a screen reader, use the
+command line, which prints the same keys and values as text.
 
 On macOS, use a Python whose Tk is 8.6. The python.org installer for 3.14 ships Tk 9.0.3, and
 on this Mac the window's `--selfcheck` (which builds the window without showing it) aborted
