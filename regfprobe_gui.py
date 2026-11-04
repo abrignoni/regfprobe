@@ -300,6 +300,10 @@ class Window:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.page_label.pack(side='left', padx=8)
 
     def _menus(self):
+        # Shortcut labels are written Cmd+O / Ctrl+O. On macOS, Tk turns such a label into the
+        # menu item's own key equivalent, drawn with the macOS symbols (tkMacOSXMenu.c,
+        # ParseAccelerator, which accepts Cmd/Command/Shift and '-' or '+'), and leaves running
+        # the command to the bindings made in _shortcuts (TKMenu performKeyEquivalent).
         menubar = tk.Menu(self.root)
         if _MAC:
             app = tk.Menu(menubar, name='apple')
@@ -372,11 +376,18 @@ class Window:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         for widget in (self.tree, self.table):
             widget.bind(f'<{_MOD}-c>', lambda _e: (self.copy_data(), 'break')[1])
         buttons = ('<Button-2>', '<Control-Button-1>') if _MAC else ('<Button-3>',)
-        for button in buttons:
-            self.tree.bind(button, lambda e: self._popup(e, self.tree, self.tree_menu))
-            self.table.bind(button, lambda e: self._popup(e, self.table, self.value_menu))
-            self.results.bind(button, lambda e: self._popup(e, self.results, self.result_menu))
-            self.timeline_view.bind(button, lambda e: self._popup(e, self.timeline_view, self.result_menu))
+        pairs = ((self.tree, self.tree_menu), (self.table, self.value_menu),
+                 (self.results, self.result_menu), (self.timeline_view, self.result_menu))
+        for view, menu in pairs:
+            for button in buttons:
+                view.bind(button, lambda e, v=view, m=menu: self._popup(e, v, m))
+            # the right-click menu from the keyboard: Shift+F10, and the Menu key on Windows
+            # (keysym App) and Linux (keysym Menu)
+            for sequence in ('<Shift-F10>', '<Key-App>', '<Key-Menu>'):
+                try:
+                    view.bind(sequence, lambda _e, v=view, m=menu: self._popup_here(v, m))
+                except tk.TclError:
+                    pass  # a keysym this platform's Tk does not know
         self.tree.bind('<Return>', self._toggle)
         self.tree.bind('<Right>', self._expand_key)
 
@@ -731,6 +742,20 @@ class Window:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             path = view.item(selected[0], 'values')[1]
             self.jump_to('' if path == '(root)' else path)
             self.tree.focus_set()
+
+    def _popup_here(self, view, menu):
+        """The right-click menu at the focused row, for the keyboard."""
+        row = view.focus()
+        box = view.bbox(row) if row else ''
+        x, y = (box[0] + 20, box[1] + box[3]) if box else (20, 20)
+        if row:
+            view.selection_set(row)
+        self._menu_view = view
+        try:
+            menu.tk_popup(view.winfo_rootx() + x, view.winfo_rooty() + y)
+        finally:
+            menu.grab_release()
+        return 'break'
 
     def _popup(self, event, view, menu):
         row = view.identify_row(event.y)

@@ -121,6 +121,17 @@ def main():
     key('<Return>', window.timeline_view)
     report['timeline_return_jumps_to'] = window.selected_key().path
 
+    tabs = []
+    for number in (1, 2, 3):
+        key(f'<{MOD}-Key-{number}>', tree)
+        tabs.append(window.tabs.index('current'))
+    report['cmd_1_2_3_tabs'] = tabs
+    # these open a file dialog, which would wait for a person; check the binding is there
+    report['dialog_shortcuts_bound'] = all(root.bind_all(seq) for seq in (
+        f'<{MOD}-o>', f'<{MOD}-O>', f'<{MOD}-e>'))
+    report['menu_key_bound'] = all(view.bind('<Shift-F10>') for view in (
+        tree, window.table, window.results, window.timeline_view))
+
     tree.focus_set()
     pump()
     key('<Tab>', tree)
@@ -142,7 +153,8 @@ def main():
                 'cmd_c_copies': ['data', 'the default value'], 'cmd_shift_c_copies': ['key path', 'Values'],
                 'size_sort_descending': True, 'cmd_f': [2, True], 'search_results': 1,
                 'result_return_jumps_to': 'Values', 'cmd_4_tab': 3, 'timeline_rows': 11,
-                'timeline_return_jumps_to': 'Software\\Sub4', 'tab_leaves_tree': True, 'escape_cancels': True}
+                'timeline_return_jumps_to': 'Software\\Sub4', 'tab_leaves_tree': True, 'escape_cancels': True,
+                'cmd_1_2_3_tabs': [0, 1, 2], 'dialog_shortcuts_bound': True, 'menu_key_bound': True}
     got = json.loads(json.dumps(report))
     failed = sorted(name for name, want in expected.items() if got.get(name) != want)
     print('all keyboard checks passed' if not failed else f'FAILED: {", ".join(failed)}')

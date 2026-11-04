@@ -70,7 +70,7 @@ only read.
 
 It has the usual menus (File, Edit, View, Help) and right-click menus on the tree, the values
 and the result lists. Copy covers the key path, the value name, the value data and its bytes
-as hex. Everything works from the keyboard:
+as hex. The main actions have shortcuts, and the right-click menus also open from the keyboard:
 
 | Keys (Ctrl on Windows and Linux, Cmd on macOS) | Does |
 | --- | --- |
@@ -81,17 +81,19 @@ as hex. Everything works from the keyboard:
 | Ctrl+E | export the selected key and everything under it (JSON, CSV, `.reg`) |
 | Ctrl+1 to Ctrl+4 | Values, Security, Search, Timeline |
 | Return | open or close a key in the tree; go to the key of a search or timeline row |
+| Shift+F10, or the Menu key on Windows and Linux | the right-click menu of the selected row |
 | Esc | cancel what is running |
 
 There are no edit controls. Everything it shows comes from the same calls the command line
 makes. The one file it writes on its own is its window size and position, in
 `~/Library/Application Support/regfprobe/` (macOS), `%APPDATA%\regfprobe\` (Windows) or
-`~/.config/regfprobe/` (Linux). On Windows it asks to be drawn at the screen's own resolution,
-so the text is not blurred by scaling.
+`~/.config/regfprobe/` (Linux). On Windows it asks Windows to draw it at the screen's own
+resolution instead of scaling it up.
 
 What was checked, on 2026-11-04: `tools/gui_keyboard_check.py` sends Tk key events through the
 window's own bindings (moving in the tree, the key bar, a bad path, copying, sorting, find,
-the timeline, Tab, Esc) and checks 19 results. All passed on macOS 27 with Python 3.12 (Tk
+the tab shortcuts, the timeline, Tab, Esc) and checks 22 results. The shortcuts that open a file
+dialog, and Shift+F10, are checked only for being bound, since what they open waits for a person. All passed on macOS 27 with Python 3.12 (Tk
 8.6) and on Windows 11 ARM64 with Python 3.11 (Tk 8.6), where the window was also captured on
 the desktop. CI runs it on the Windows jobs. Not tested: a screen reader. Tk's support for
 screen readers is limited on every platform, and that is the cost of a window that needs

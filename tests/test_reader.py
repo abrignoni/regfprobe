@@ -176,6 +176,20 @@ class FaultTest(unittest.TestCase):
         self.assertEqual(len(paths), len(set(paths)) + 0)
         self.assertEqual(hive.faults['cycle'], 1)
 
+    def test_reading_a_damaged_structure_again_does_not_count_it_again(self):
+        data = sample()
+        hive = regfprobe.Hive(data)
+        node = hive.open_key('Ünïcödé Ключ')
+        hive = regfprobe.Hive(_patch(data, node.subkeys_offset, '<I', 4, hive.root_offset))
+        for _ in range(3):
+            list(hive.walk())
+        key = regfprobe.Hive(data).open_key('Software')
+        broken = regfprobe.Hive(_patch(data, key.offset, '<I', 44, 0x7FFFFFF8))
+        for _ in range(3):
+            broken.open_key('Software').security()
+        self.assertEqual((hive.faults['cycle'], broken.faults['sk']), (1, 1))
+        self.assertEqual(len(broken.fault_log), 1)
+
     def test_a_value_list_past_the_end_is_counted_and_the_key_still_reads(self):
         data = sample()
         key = regfprobe.Hive(data).open_key('Values')

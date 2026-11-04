@@ -500,7 +500,8 @@ class Hive:
     pairs. recover=False reads the primary file exactly as it is.
 
     Nothing here raises for a damaged cell. A cell that cannot be read loses that one key,
-    value or list, and is counted in faults (by kind) and listed in fault_log.
+    value or list, and is counted in faults (by kind) and listed in fault_log, once per
+    structure however many times it is read.
     """
 
     FAULT_LOG_LIMIT = 1000
@@ -534,6 +535,7 @@ class Hive:
         self._view = memoryview(self.data)
         self.faults = Counter()
         self.fault_log = []
+        self._fault_seen = set()
         self._parse_base_block()
 
     # -- base block ------------------------------------------------------------------------
@@ -587,7 +589,11 @@ class Hive:
     # -- cells ------------------------------------------------------------------------------
 
     def fault(self, kind, offset, reason):
-        """Count a damaged structure and keep its description, up to FAULT_LOG_LIMIT of them."""
+        """Count a damaged structure once, however often it is read, and keep its description
+        (up to FAULT_LOG_LIMIT of them)."""
+        if (kind, offset) in self._fault_seen:
+            return
+        self._fault_seen.add((kind, offset))
         self.faults[kind] += 1
         if len(self.fault_log) < self.FAULT_LOG_LIMIT:
             self.fault_log.append((kind, offset, reason))
