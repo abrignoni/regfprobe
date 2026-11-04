@@ -47,6 +47,8 @@ jobs:
       run:
         shell: bash
     steps:
+      # Windows runners check out with CRLF line endings; freeze the bytes the tag holds
+      - run: git config --global core.autocrlf false
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.tag || github.sha }}
