@@ -60,15 +60,15 @@ def main():
                     ['export', hive, '--format', 'reg']):
             want, got = run(source + sub), run(binary + sub)
             check(want[0] == 0 and got == want, f'{sub[0]} {" ".join(sub[2:])} matches the source'
-                  f'{"" if got == want else f" (exit {got[0]} vs {want[0]}; {got[2].strip()[:200]})"}')
+                  f'{"" if got == want else f" (exit {got[0]} vs {want[0]}; {got[2].strip()[-300:]})"}')
 
         code, out, err = run(binary + ['hives', '--image', image])
         check(code == 0 and 'needs qnxprobe' not in out + err,
-              f'opens a disk image (exit {code}{"; " + err.strip()[:200] if err.strip() else ""})')
+              f'opens a disk image (exit {code}{"; " + err.strip()[-300:] if err.strip() else ""})')
 
         if args.gui:
             code, out, err = run([os.path.abspath(args.gui), '--selfcheck', hive])
-            check(code == 0, f'window --selfcheck exits 0 (got {code}; {err.strip()[:300]})')
+            check(code == 0, f'window --selfcheck exits 0 (got {code}; {err.strip()[-300:]})')
             if out.strip():
                 report = json.loads(out)
                 check(report.get('window') == 'built' and report.get('root_subkeys_shown', 0) > 0
