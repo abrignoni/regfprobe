@@ -152,18 +152,45 @@ that list on both hives: all 2015 keys and 37 values, with the same last-written
 the 100 ns, class names, counts, type numbers and data bytes. With one planted byte change it
 reported exactly that one value. Corpus key: `windows11_arm_regfprobe_known_20261104`.
 
-**Against python-registry, on real hives.** `tools/compare_python_registry.py` read 187 hives
-out of the CFReDS Data Leakage (Windows 7), CFReDS Hacking Case (Windows XP) and PC-MUS-001
-(Windows 11) images with both libraries (corpus keys `cfreds_leakage_win7`,
-`cfreds_hacking_case_winxp`, `pc_mus_001_win11`): 1,181,086 keys and 2,555,789 values. Both
-found the same keys and the same values, with the same last-written times. regfprobe skipped no
-damaged structure on any of them. Matched by key path and value name, never by position.
+**Against python-registry, on real hives.** `tools/compare_python_registry.py` read 921 hives
+with both libraries, out of ten Windows images in the corpus: CFReDS Data Leakage (Windows 7),
+CFReDS Hacking Case (Windows XP), PC-MUS-001 (Windows 11), AF-Case2 and LoneWolf (Windows 10),
+the Szechuan Sauce desktop and domain controller, the OU Server 2022 image and Ali Hadi's
+Challenge 3 (Windows 8.1) and ThreatSim server (corpus keys `cfreds_leakage_win7`,
+`cfreds_hacking_case_winxp`, `pc_mus_001_win11`, `af_case2_win10`, `lonewolf_win10`,
+`szechuan_win10`, `szechuan_dc01_server2012r2`, `ou_ransomware_server2022`,
+`alihadi_challenge3_win81`, `alihadi_threatsim_server2019`). That is 4,135,804 keys and
+8,452,433 values. Both found the same keys, with the same last-written times. They found the
+same values in every hive but one: in the BBI hive of the Szechuan desktop, which is dirty, two
+value lists point at cells that only its logs hold. Read without the logs, python-registry
+drops both lists, and regfprobe reads 12 of their 16 values (one of them without its data) and
+counts the 4 values and the 1 data cell it cannot read as damaged. With the logs replayed,
+regfprobe reads all 16 with their data. Matched by key path and value name,
+never by position.
+
+**Against RECmd.** `tools/compare_recmd.py` compared regfprobe with Eric Zimmerman's RECmd
+2026.10.3 (`--kn ROOT --recover false --json`) on 60 of those hives: SYSTEM, SAM, SECURITY, one
+user's NTUSER.DAT and UsrClass.dat, and Amcache.hve from each image, and the Windows 7 and XP
+SOFTWARE hives. 789,559 keys and 2,058,352 values: the same keys, the same last-write times to
+the 100 ns, the same values and the same bytes for every one of them. On the format 1.5
+known-data hive it agreed on all 2015 keys and 37 values too. RECmd reports a type number with bits above the low
+12 as the low type (15,684 values on these hives), the way python-registry does. In Amcache.hve
+RECmd's `--kn ROOT` dumps the subkey named Root, so for those eight hives that subtree is what
+was compared.
+
+**Against regipy.** `tools/compare_regipy.py` compared regipy 6.5.0 on 186 of the 187 hives from
+the first three images (it ran out of memory on the PC-MUS-001 SYSTEM hive) and on both
+known-data hives. 957,873 keys: the same keys with the same last-written times, except where a key or value
+name holds a byte above 0x7F. regipy decodes those bytes as U+FFFD, where Windows' own listing
+of the known data and regfprobe give the character. regipy keeps the bytes after a string's
+terminating NUL (85 values), and 70 more values decode differently in ways not examined one by
+one. regipy trims values to 256 characters by default; the comparison turns that off.
 
 **Log replay.** The replay code is copied from DLEAPP's `scripts/registry_recovery.py` (DLEAPP
-commit dc77aab), which DLEAPP still uses for now. On the 14
-dirty hives among those 187, regfprobe and DLEAPP produced byte-identical hives and the same
-summary (13 replayed; 1, the PC-MUS-001 SYSTEM hive, refused because its logs would have given
-3 keys an earlier last-written time than the hive holds). DLEAPP's 23 tests of the replay
+commit dc77aab), which DLEAPP still uses for now. On the 61 dirty hives among those 921,
+regfprobe and DLEAPP produced byte-identical hives and the same summary: 53 replayed and 8 read
+as they are. One of the 8, the PC-MUS-001 SYSTEM hive, was refused because its logs would have
+given 3 keys an earlier last-written time than the hive holds. DLEAPP's 23 tests of the replay
 itself run here with only their imports changed; its tests of `open_hive`, which belongs to
 DLEAPP, stayed there.
 
@@ -175,7 +202,8 @@ and the window.
 
 ## Where it differs from python-registry 1.3.1
 
-Each of these was seen on the corpus hives above and again on the Windows-made known data.
+Each of these was seen on the corpus hives and again on the Windows-made known data. The counts
+are from the first 187 hives (the Windows 7, XP and PC-MUS-001 images).
 
 | What | python-registry | regfprobe |
 | --- | --- | --- |
@@ -192,6 +220,8 @@ regfprobe does not decode the `settings.dat` composite types. A tool that needs 
 - Windows 9x (`CREG`) and Windows 3.1 (`SHCC`) registry files are not read.
 - A lone `.LOG` file (the Windows XP log) is not read; only `.LOG1` and `.LOG2` are replayed.
 - Transactional registry files (`.blf`, `.regtrans-ms`) are not read.
+- `--image` reads disk images (E01, raw, and what qnxprobe opens). Logical evidence such as an
+  FTK AD1 holds copies of files, not a disk: export the hive with ewfprobe and open the file.
 - Layered keys (Windows containers) are read as ordinary keys; the tombstone flag is exposed as
   `Value.tombstone` and not interpreted.
 - Nothing is ever written: no edits, no saving a replayed hive back over the original.

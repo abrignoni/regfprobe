@@ -407,6 +407,24 @@ class ImageTest(unittest.TestCase):
         self.assertEqual([name for name, _data in hive.logs], ['SYSTEM.LOG1'])  # the log of its own volume
         self.assertEqual(regfprobe.read_from_image('img', 'Users/a/NTUSER.DAT').logs, [])
 
+    def test_a_refused_image_is_one_error_line(self):
+        class Refused(Exception):
+            pass
+
+        class FakeQnx:
+            @staticmethod
+            def open_image(_image, password=None):  # pylint: disable=unused-argument
+                raise Refused('it holds copies of files, not a disk')
+        real_walk, real_qnx = regfprobe._walk_image, regfprobe._qnxprobe  # pylint: disable=protected-access
+        regfprobe._walk_image = self.real  # pylint: disable=protected-access
+        regfprobe._qnxprobe = lambda: FakeQnx  # pylint: disable=protected-access
+        try:
+            code, _out, err = run_cli('hives', '--image', 'case.ad1')
+        finally:
+            regfprobe._walk_image, regfprobe._qnxprobe = real_walk, real_qnx  # pylint: disable=protected-access
+        self.assertEqual(code, 2)
+        self.assertEqual(err, 'regfprobe: case.ad1: it holds copies of files, not a disk\n')
+
     def test_a_walk_can_be_cancelled(self):
         with self.assertRaises(regfprobe.RegfError) as caught:
             regfprobe.hives_in_image('img', cancel=lambda: True)
