@@ -1,0 +1,3 @@
+[MAIN]
+# The tools and tests import regfprobe from the repository root.
+init-hook='import sys, os; sys.path[:0] = [os.getcwd(), os.path.join(os.getcwd(), "tests")]'

@@ -1,0 +1,184 @@
+# regfprobe
+
+Read Windows registry hive files offline: list keys, read values, search, build a timeline of
+key last-written times, and export to JSON, CSV or a `.reg` file. When a hive is dirty, its
+`.LOG1` and `.LOG2` transaction logs are replayed in memory first. It never writes to the hive
+or its logs.
+
+One file, `regfprobe.py`, Python 3 standard library only. Nothing to install, no admin rights,
+no mounting. It is meant to be copied into other tools as it is (vendored), the way qnxprobe and
+ewfprobe are copied into the LEAPPs. A second, optional file, `regfprobe_gui.py`, puts a
+read-only window over it. That one is standard library too.
+
+The name comes from `regf`, the four bytes every hive file starts with.
+
+## Quick start
+
+    python3 regfprobe.py info SYSTEM
+    python3 regfprobe.py ls SYSTEM Select
+    python3 regfprobe.py cat SOFTWARE "Microsoft\Windows NT\CurrentVersion" ProductName
+    python3 regfprobe.py find NTUSER.DAT "teamviewer"
+    python3 regfprobe.py timeline SOFTWARE --out software_timeline.csv
+    python3 regfprobe.py export SYSTEM ControlSet001\Services --format csv --out services.csv
+    python3 regfprobe.py logs SYSTEM
+    python3 regfprobe_gui.py SYSTEM
+
+Key paths are given below the root key, with `\` or `/`, and names compare without case, the
+way Windows compares them.
+
+## Reading straight from a disk image
+
+Put `qnxprobe.py` (and `ewfprobe.py` for E01) beside `regfprobe.py`, or anywhere Python can
+import them, and a hive can be read without extracting anything first:
+
+    python3 regfprobe.py hives --image case.E01
+    python3 regfprobe.py info --image case.E01 --path Windows/System32/config/SYSTEM
+    python3 regfprobe.py ls --image case.E01 --path Windows/System32/config/SYSTEM Select
+    python3 regfprobe.py hives --image case.E01 --extract staged/
+
+With `--image`, every command takes the same words as with a hive file, minus the file.
+`hives` lists the files named like a hive (SYSTEM, SOFTWARE, SAM, SECURITY, NTUSER.DAT,
+UsrClass.dat, Amcache.hve, settings.dat and the like). It goes by name, so a hive saved under
+another name is not listed. `--path` reads that hive and the `.LOG1` and `.LOG2` beside it in
+the same volume; when more than one volume holds a file at that path, name one with `--volume`. `--extract` copies the hives and their logs out, keeping their paths. The image is
+only read.
+
+## The window
+
+`regfprobe_gui.py` shows:
+
+- a key tree on the left, loaded as you open it
+- the selected key's values: name, type, size, decoded data and any decoding notes
+- the raw bytes of the selected value, in hex
+- the key's last-written time (UTC and the FILETIME), class name, cell offset and counts
+- a banner saying whether the hive was dirty, what the log replay did or why it refused, and
+  how many damaged structures were skipped
+- a Security tab with the key's owner, group and access entries
+- a Search tab over key names, value names and data; double-click a result to go to the key
+- a Timeline tab with every key by last-written time
+- Export of the selected key and everything under it (JSON, CSV, `.reg`), and Copy path
+
+It opens a hive file, or a hive picked from a list of those found in a disk image. There are
+no edit controls. Everything it shows comes from the same calls the command line makes.
+
+`python3 regfprobe_gui.py --selfcheck HIVE` builds the window, loads the hive and exits without
+showing anything, for tests. It does not run on macOS with Tk 9 (the python.org 3.14 installer
+ships Tk 9.0.3), where a window that is never shown can abort Python; the tests run it on Tk 8.6.
+
+## Using it from code
+
+```python
+import regfprobe
+
+hive = regfprobe.Hive('SYSTEM')            # logs beside it are found and replayed
+print(hive.version, hive.recovery['state'])
+key = hive.open_key('ControlSet001\\Services\\Tcpip\\Parameters')
+print(key.last_written)                    # aware UTC datetime; key.last_written_raw is the FILETIME
+for value in key.values():
+    print(value.name or '(default)', value.type_name, value.data, value.notes)
+    value.raw                              # the data bytes exactly as stored
+print(hive.faults)                         # damaged structures skipped, by kind
+```
+
+`Hive` takes a path, bytes, or any file object with `read()`. `Value.data` is decoded by type:
+`str` for REG_SZ, REG_EXPAND_SZ and REG_LINK, a list for REG_MULTI_SZ, `int` for the DWORD and
+QWORD types, and `bytes` for everything else and for any value whose bytes do not fit its type.
+`Value.raw` is always the stored bytes. `Value.notes` says what did not fit (no terminating NUL,
+bytes after the NUL, an odd length, a DWORD that is not four bytes, a data cell shorter than the
+size the value records). A note never stops a value from being read.
+
+A cell that cannot be read loses that one key, value or list. It is counted in `hive.faults`
+and described in `hive.fault_log`, and the rest of the hive reads normally.
+
+### Code written for python-registry
+
+`regfprobe.CompatRegistry` answers the calls that code written against python-registry 1.3.1
+makes (`open`, `root`, `subkeys`, `subkey`, `values`, `value`, `name`, `path`, `timestamp`,
+`value_type`, `raw_data` and its two not-found exceptions), with the same return shapes: naive
+UTC datetimes rounded the same way, `(default)` for the default value's name, paths that begin
+with the root key's name, and REG_MULTI_SZ lists that keep their trailing empty strings. Where
+the two libraries return different data for the same bytes, see the next section.
+
+## How it was checked
+
+Measured on 2026-11-04.
+
+**Against Windows itself.** `tools/known-data/make_known_hive.ps1` builds a key on Windows 11
+build 26200 (ARM64) through the Win32 API, with UTF-16 and Latin-1 names, a key with 2000
+subkeys, a class name, every REG_* type, three type numbers outside them, odd-length and
+unterminated strings, and binary values from 0 to 100,000 bytes. It saves the key with
+`reg save` (hive format 1.3) and with `RegSaveKeyEx` in the latest format (1.5, where four of
+the values are stored as big data), and has Windows list every key and value through
+`RegEnumKeyEx` and `RegEnumValue`. `tools/known-data/compare_known.py` matched regfprobe to
+that list on both hives: all 2015 keys and 37 values, with the same last-written FILETIMEs to
+the 100 ns, class names, counts, type numbers and data bytes. With one planted byte change it
+reported exactly that one value. Corpus key: `windows11_arm_regfprobe_known_20261104`.
+
+**Against python-registry, on real hives.** `tools/compare_python_registry.py` read 187 hives
+out of the CFReDS Data Leakage (Windows 7), CFReDS Hacking Case (Windows XP) and PC-MUS-001
+(Windows 11) images with both libraries (corpus keys `cfreds_leakage_win7`,
+`cfreds_hacking_case_winxp`, `pc_mus_001_win11`): 1,181,086 keys and 2,555,789 values. Both
+found the same keys and the same values, with the same last-written times. regfprobe skipped no
+damaged structure on any of them. Matched by key path and value name, never by position.
+
+**Log replay.** The replay code is copied from DLEAPP's `scripts/registry_recovery.py` (DLEAPP
+commit dc77aab), which DLEAPP still uses for now. On the 14
+dirty hives among those 187, regfprobe and DLEAPP produced byte-identical hives and the same
+summary (13 replayed; 1, the PC-MUS-001 SYSTEM hive, refused because its logs would have given
+3 keys an earlier last-written time than the hive holds). DLEAPP's 23 tests of the replay
+itself run here with only their imports changed; its tests of `open_hive`, which belongs to
+DLEAPP, stayed there.
+
+**Unit tests.** `tests/hivebuilder.py` builds hives in memory the way the specification lays
+them out, and python-registry reading them is the check that they are hives. The tests cover
+every index kind, both name encodings, big data, data stored in the value record itself,
+security records, damaged cells, a subkey list that loops back up the tree, the command line
+and the window.
+
+## Where it differs from python-registry 1.3.1
+
+Each of these was seen on the corpus hives above and again on the Windows-made known data.
+
+| What | python-registry | regfprobe |
+| --- | --- | --- |
+| Data of four bytes or fewer, kept in the value record itself | bytes other than the stored ones for 33,716 values: 29,654 REG_SZ, 637 REG_EXPAND_SZ, 435 REG_MULTI_SZ, 39 REG_DWORD, 1 REG_DWORD_BIG_ENDIAN and 2,950 of other type numbers. Its code returns four bytes for a REG_SZ whatever the stored size, and none for a REG_MULTI_SZ | the stored number of bytes |
+| A REG_DWORD whose data is in a cell of its own | reads the record's offset field as the data, so the DWORD is the cell's offset (1 value, an 8-byte DWORD on PC-MUS-001) | reads the cell |
+| Type numbers with bits above the low 12 | masks them off, so 0x20004 is reported as 4 (19,146 values: 16,396 with a high word of 0xFFFF, 1,547 numbered 100,000,000 and up, 1,203 others) | the type number as stored |
+
+regfprobe does not decode the `settings.dat` composite types. A tool that needs them decodes
+`Value.raw` itself.
+
+## What it does not do
+
+- Deleted keys and values in unallocated cells are not recovered.
+- Windows 9x (`CREG`) and Windows 3.1 (`SHCC`) registry files are not read.
+- A lone `.LOG` file (the Windows XP log) is not read; only `.LOG1` and `.LOG2` are replayed.
+- Transactional registry files (`.blf`, `.regtrans-ms`) are not read.
+- Layered keys (Windows containers) are read as ordinary keys; the tombstone flag is exposed as
+  `Value.tombstone` and not interpreted.
+- Nothing is ever written: no edits, no saving a replayed hive back over the original.
+
+## Vendoring
+
+Copy `regfprobe.py` verbatim (and `regfprobe_gui.py` if you want the window), keep `LICENSE`
+beside it as `LICENSE-regfprobe`, and record the commit and SHA-256 you copied. Fix problems
+here and copy again, so the copies do not drift.
+
+## Sources
+
+- Maxim Suhanov, "Windows registry file format specification",
+  [commit 88e878d](https://github.com/msuhanov/regf/blob/88e878de51bae393143b0ac8daae6c2dfc256bf7/Windows%20registry%20file%20format%20specification.md):
+  the base block, hive bins, cells, key nodes, values, big data, index lists, security records
+  and both transaction log formats.
+- Microsoft [MS-DTYP] sections 2.4.2 (SID), 2.4.4 (ACE), 2.4.5 (ACL) and 2.4.6 (security
+  descriptor), and the REG_* type numbers of `winnt.h`.
+- Marvin32 follows Microsoft's SymCrypt, `lib/marvin32.c` at commit 286762b, and reproduces its
+  known answer.
+
+No code was taken from another registry reader.
+
+## Licence
+
+MIT. See `LICENSE`.
+
+Author: Alexis Brignoni (@AlexisBrignoni), with Claude.
