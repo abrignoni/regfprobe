@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.DS_Store
+
+# Hives, logs and images never belong in this repository: the tests build their own.
+*.hiv
+*.LOG1
+*.LOG2
+*.E0[0-9]
+*.raw
