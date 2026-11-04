@@ -96,12 +96,15 @@ jobs:
         run: |
           python -m pip install --upgrade pip "$PYINSTALLER"
           python -c "import sys, tkinter; print(sys.version, sys.platform, 'Tk', tkinter.TkVersion)"
-          COMMON="--noconfirm --clean --paths _probes --hidden-import qnxprobe --hidden-import ewfprobe"
-          python -m PyInstaller $COMMON --onefile --console --name regfprobe regfprobe.py
+          # UTF-8 mode: a frozen binary ignores PYTHONIOENCODING, and on Windows its piped or
+          # redirected output was cp1252, which cannot write every key name
+          COMMON=(--noconfirm --clean --paths _probes --hidden-import qnxprobe --hidden-import ewfprobe
+                  --python-option "X utf8")
+          python -m PyInstaller "${COMMON[@]}" --onefile --console --name regfprobe regfprobe.py
           if [ "$RUNNER_OS" = "macOS" ]; then
-            python -m PyInstaller $COMMON --windowed --onedir --name regfprobe-window regfprobe_gui.py
+            python -m PyInstaller "${COMMON[@]}" --windowed --onedir --name regfprobe-window regfprobe_gui.py
           else
-            python -m PyInstaller $COMMON --windowed --onefile --name regfprobe-window regfprobe_gui.py
+            python -m PyInstaller "${COMMON[@]}" --windowed --onefile --name regfprobe-window regfprobe_gui.py
           fi
           ls -la dist
       - name: Check the binaries against the source
