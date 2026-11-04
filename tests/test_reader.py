@@ -273,6 +273,21 @@ class CompatTest(unittest.TestCase):
                      'RegResourceRequirementsList', 'RegQWord'):
             self.assertEqual(getattr(regfprobe.CompatRegistry, name), getattr(RegistryParse, name), name)
 
+    def test_a_value_whose_data_cannot_be_read_raises_in_the_compat_layer(self):
+        data = sample()
+        value = regfprobe.Hive(data).open_key('Values').value('Binary')
+        broken = bytearray(data)
+        struct.pack_into('<I', broken, 4096 + value.offset + 4 + 8, 0x7FFFFFF8)   # data offset past the end
+        hive = regfprobe.Hive(bytes(broken))
+        native = hive.open_key('Values').value('Binary')
+        self.assertEqual((native.raw, native.unreadable), (b'', True))   # the native API reads on
+        compat = regfprobe.CompatRegistry(hive).open('Values').value('Binary')
+        with self.assertRaises(regfprobe.CompatRegistry.RegistryException):
+            compat.value()
+        with self.assertRaises(regfprobe.CompatRegistry.RegistryException):
+            compat.raw_data()
+        self.assertEqual(hive.faults['data'], 1)
+
     def test_a_short_dword_is_still_an_int(self):
         key = self.reg.open('Values')
         self.assertEqual(key.value('ShortDword').value(), 0x0201)

@@ -139,8 +139,11 @@ carries python-registry's names for the REG_* numbers (`CompatRegistry.RegSZ`, `
 `RegDWord` and the rest), and `CompatRegistry.RegistryException`, the base of every error
 regfprobe raises, for a file that is not a hive. A REG_DWORD or REG_QWORD stored with fewer
 bytes than it needs comes back as the number those bytes make, zero-padded, so arithmetic on it
-still works (`Value.data` keeps the bytes and a note). Where the two libraries return different
-data for the same bytes, see the next section.
+still works (`Value.data` keeps the bytes and a note). When a value's data cell cannot be read,
+`value()` and `raw_data()` raise `RegistryException`, as python-registry raises, so a caller's
+error handling sees the damaged value; the native `Value` reads on with empty bytes, a note and
+`Value.unreadable` set. Where the two libraries return different data for the same bytes, see the
+next section.
 
 `Hive(..., on_fault=callback)` calls `callback(kind, offset, reason)` the first time each
 damaged structure is skipped, so a caller can log it when it happens.

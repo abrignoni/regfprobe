@@ -862,7 +862,7 @@ class Value:
     about the stored bytes did not fit the type (they never stop the value from being read)."""
 
     __slots__ = ('key', 'offset', 'name', 'raw_name', 'type', 'flags', 'size_field',
-                 'data_offset', 'size', 'resident', '_big', 'notes', '_raw', '_data')
+                 'data_offset', 'size', 'resident', '_big', 'unreadable', 'notes', '_raw', '_data')
 
     def __init__(self, key, offset):
         hive = key.hive
@@ -878,6 +878,7 @@ class Value:
         self.resident = bool(self.size_field & 0x80000000)
         self.size = self.size_field & 0x7FFFFFFF
         self._big = False
+        self.unreadable = False   # True when the data cell (or a big data segment) could not be read
         self.notes = []
         self._raw = None
         self._data = None
@@ -921,6 +922,7 @@ class Value:
         except RegfError as error:
             hive.fault('data', self.data_offset, str(error))
             self.notes.append(f'data cell unreadable: {error}')
+            self.unreadable = True
             return b''
         if (self.size > _BIG_DATA_SEGMENT and hive.minor_version > 3 and len(cell) >= 8
                 and bytes(cell[:2]) == b'db'):
@@ -939,6 +941,7 @@ class Value:
         except RegfError as error:
             hive.fault('db', list_offset, str(error))
             self.notes.append(f'big data segment list unreadable: {error}')
+            self.unreadable = True
             return b''
         if 4 * count > len(listing):
             self.notes.append('big data segment list runs past its cell')
@@ -953,6 +956,7 @@ class Value:
             except RegfError as error:
                 hive.fault('db', segment_offset, str(error))
                 self.notes.append(f'big data segment {index} unreadable: {error}')
+                self.unreadable = True
                 break
             take = min(remaining, _BIG_DATA_SEGMENT, len(segment))
             parts.append(bytes(segment[:take]))
@@ -1231,9 +1235,18 @@ class CompatValue:
     def value_type_str(self):
         return _COMPAT_TYPE_NAMES.get(self._value.type, 'Unknown type: %s' % hex(self._value.type))
 
+    def _check(self):
+        """python-registry raises when a value's data cannot be read; so does this, so a caller's
+        error handling sees the damaged value instead of an empty one."""
+        _ = self._value.raw
+        if self._value.unreadable:
+            raise RegfError(f'value {self._value.name or "(default)"}: {"; ".join(self._value.notes)}')
+
     def value(self):
         """The decoded data. A REG_MULTI_SZ is the whole text split at every NUL, trailing empty
-        strings kept, the list shape python-registry 1.3.1 returns; everything else is Value.data."""
+        strings kept, the list shape python-registry 1.3.1 returns; everything else is Value.data.
+        Raises RegistryException when the value's data cannot be read."""
+        self._check()
         if self._value.type == 7:
             raw = self._value.raw
             raw = raw[:len(raw) - len(raw) % 2]
@@ -1250,6 +1263,8 @@ class CompatValue:
         return self._value.data
 
     def raw_data(self):
+        """The stored bytes. Raises RegistryException when the value's data cannot be read."""
+        self._check()
         return self._value.raw
 
 
