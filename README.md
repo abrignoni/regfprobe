@@ -45,25 +45,61 @@ only read.
 
 ## The window
 
+    python3 regfprobe_gui.py
+    python3 regfprobe_gui.py SOFTWARE --key "Microsoft\Windows NT\CurrentVersion"
+    python3 regfprobe_gui.py --image case.E01
+
 `regfprobe_gui.py` shows:
 
+- a key bar at the top with the selected key's path; type or paste a path and press Return to go
+  there (with or without the root key's name)
+- a banner with a coloured stripe and a title saying how much to trust what follows: a clean
+  hive, a dirty hive whose logs were replayed, a dirty hive read as it is (and why), or damaged
+  structures that were skipped
 - a key tree on the left, loaded as you open it
-- the selected key's values: name, type, size, decoded data and any decoding notes
-- the raw bytes of the selected value, in hex
-- the key's last-written time (UTC and the FILETIME), class name, cell offset and counts
-- a banner saying whether the hive was dirty, what the log replay did or why it refused, and
-  how many damaged structures were skipped
+- the selected key's last-written time (UTC and the FILETIME), counts, class name, cell offset
+  and flags
+- its values: name, type, size, decoded data and any decoding notes, sortable by any column
+- the decoded data and raw bytes of the selected value
 - a Security tab with the key's owner, group and access entries
-- a Search tab over key names, value names and data; double-click a result to go to the key
-- a Timeline tab with every key by last-written time
-- Export of the selected key and everything under it (JSON, CSV, `.reg`), and Copy path
+- a Search tab over key names, value names and data
+- a Timeline tab with every key by last-written time, limited to a date range if you give one,
+  shown 1000 rows at a time, and saved to CSV whole
+- a status bar with a progress bar and a Cancel button while a hive is opened, an image is
+  searched for hives, or a search or timeline runs; the window stays usable meanwhile
 
-It opens a hive file, or a hive picked from a list of those found in a disk image. There are
-no edit controls. Everything it shows comes from the same calls the command line makes.
+It has the usual menus (File, Edit, View, Help) and right-click menus on the tree, the values
+and the result lists. Copy covers the key path, the value name, the value data and its bytes
+as hex. Everything works from the keyboard:
 
-`python3 regfprobe_gui.py --selfcheck HIVE` builds the window, loads the hive and exits without
-showing anything, for tests. It does not run on macOS with Tk 9 (the python.org 3.14 installer
-ships Tk 9.0.3), where a window that is never shown can abort Python; the tests run it on Tk 8.6.
+| Keys (Ctrl on Windows and Linux, Cmd on macOS) | Does |
+| --- | --- |
+| Ctrl+O, Ctrl+Shift+O | open a hive file, or a hive inside a disk image |
+| Ctrl+L | go to a key by path |
+| Ctrl+F | find |
+| Ctrl+C, Ctrl+Shift+C | copy the selected value's data, or the key path |
+| Ctrl+E | export the selected key and everything under it (JSON, CSV, `.reg`) |
+| Ctrl+1 to Ctrl+4 | Values, Security, Search, Timeline |
+| Return | open or close a key in the tree; go to the key of a search or timeline row |
+| Esc | cancel what is running |
+
+There are no edit controls. Everything it shows comes from the same calls the command line
+makes. The one file it writes on its own is its window size and position, in
+`~/Library/Application Support/regfprobe/` (macOS), `%APPDATA%\regfprobe\` (Windows) or
+`~/.config/regfprobe/` (Linux). On Windows it asks to be drawn at the screen's own resolution,
+so the text is not blurred by scaling.
+
+What was checked, on 2026-11-04: `tools/gui_keyboard_check.py` sends Tk key events through the
+window's own bindings (moving in the tree, the key bar, a bad path, copying, sorting, find,
+the timeline, Tab, Esc) and checks 19 results. All passed on macOS 27 with Python 3.12 (Tk
+8.6) and on Windows 11 ARM64 with Python 3.11 (Tk 8.6), where the window was also captured on
+the desktop. CI runs it on the Windows jobs. Not tested: a screen reader. Tk's support for
+screen readers is limited on every platform, and that is the cost of a window that needs
+nothing installed.
+
+On macOS, use a Python whose Tk is 8.6. The python.org installer for 3.14 ships Tk 9.0.3, and
+on this Mac the window's `--selfcheck` (which builds the window without showing it) aborted
+Python there. The test suite and `gui_keyboard_check.py` skip or refuse on that combination.
 
 ## Using it from code
 

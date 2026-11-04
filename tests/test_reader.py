@@ -350,7 +350,10 @@ class WindowTest(unittest.TestCase):
             if no_display and not os.environ.get('REGFPROBE_REQUIRE_GUI'):
                 self.skipTest('no display')
             self.fail(f'window self-check failed ({done.returncode}): {done.stderr[-500:]}')
-        self.assertEqual(json.loads(done.stdout), {'window': 'built', 'root_subkeys_shown': 4, 'values_shown': 1})
+        self.assertEqual(json.loads(done.stdout), {
+            'window': 'built', 'menus': 4 + (sys.platform == 'darwin'), 'root_subkeys_shown': 4,
+            'go_to_key': True, 'values_shown': 1, 'copied': True, 'missing_key_found': False,
+            'timeline_rows': 11})
 
 
 class _Walker:
@@ -370,8 +373,10 @@ class ImageTest(unittest.TestCase):
         files = [('vol1', 'Windows/System32/config/SYSTEM', hive), ('vol2', 'Windows/System32/config/SYSTEM', hive),
                  ('vol2', 'Windows/System32/config/SYSTEM.LOG1', b'not a log'), ('vol1', 'Users/a/NTUSER.DAT', hive)]
 
-        def fake(_image, wanted, _password=None):
+        def fake(_image, wanted, _password=None, cancel=None):
             for label, path, data in files:
+                if cancel is not None and cancel():
+                    raise regfprobe.RegfError('cancelled')
                 if wanted(path):
                     yield label, path, _Walker(data), None, len(data)
         regfprobe._walk_image = fake  # pylint: disable=protected-access
@@ -387,6 +392,11 @@ class ImageTest(unittest.TestCase):
         self.assertEqual(hive.path, 'img::vol2/Windows/System32/config/SYSTEM')
         self.assertEqual([name for name, _data in hive.logs], ['SYSTEM.LOG1'])  # the log of its own volume
         self.assertEqual(regfprobe.read_from_image('img', 'Users/a/NTUSER.DAT').logs, [])
+
+    def test_a_walk_can_be_cancelled(self):
+        with self.assertRaises(regfprobe.RegfError) as caught:
+            regfprobe.hives_in_image('img', cancel=lambda: True)
+        self.assertEqual(str(caught.exception), 'cancelled')
 
     def test_commands_take_the_same_words_with_image(self):
         code, out, _err = run_cli('ls', '--image', 'img', '--path', 'Users/a/NTUSER.DAT', 'Values')

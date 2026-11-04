@@ -46,3 +46,9 @@ jobs:
           REGFPROBE_REQUIRE_PYTHON_REGISTRY: "1"
           REGFPROBE_REQUIRE_GUI: "1"
           PYTHONIOENCODING: utf-8
+      # the keyboard walkthrough needs a real desktop session; GitHub's Windows runners have one
+      - name: Keyboard walkthrough of the window
+        if: runner.os == 'Windows'
+        run: python tools/gui_keyboard_check.py
+        env:
+          PYTHONIOENCODING: utf-8

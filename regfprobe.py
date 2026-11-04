@@ -1106,8 +1106,12 @@ def _is_hive_name(path):
     return base in _HIVE_NAMES or base.endswith('.HVE')
 
 
-def _walk_image(image, wanted, password=None):
-    """(volume name, path, walker, node, size) for each file in the image that wanted(path) accepts."""
+def _walk_image(image, wanted, password=None, cancel=None):
+    """(volume name, path, walker, node, size) for each file in the image that wanted(path) accepts.
+
+    cancel, when given, is called between files; when it returns true the walk stops with
+    RegfError('cancelled').
+    """
     qnx = _qnxprobe()
     handle = qnx.open_image(image, password=password)
     s_ifmt, s_ifdir = 0o170000, 0o040000
@@ -1117,6 +1121,8 @@ def _walk_image(image, wanted, password=None):
             continue
         label = volume.get('name') or ('lba%d' % volume.get('lba', 0))
         for entry in qnx.walk_all(walker):
+            if cancel is not None and cancel():
+                raise RegfError('cancelled')
             path, node, mode, size = entry[0], entry[1], entry[2], entry[3]
             if (mode & s_ifmt) == s_ifdir or not wanted(path):
                 continue
@@ -1130,17 +1136,18 @@ def _read_node(walker, node, size):
     return b''.join(bytes(chunk) for chunk in data if chunk)
 
 
-def hives_in_image(image, password=None):
+def hives_in_image(image, password=None, cancel=None):
     """[(volume, path, size)] of the files in a disk image named like a hive.
 
     By name only (SYSTEM, NTUSER.DAT, *.hve and the like): a hive under another name is not
     listed, and a listed file is confirmed a hive only when it is opened.
     """
     return [(label, path, size) for label, path, _w, _n, size in
-            _walk_image(image, _is_hive_name, password)]
+            _walk_image(image, _is_hive_name, password, cancel)]
 
 
-def read_from_image(image, hive_path, password=None, recover=True, volume=None):  # pylint: disable=redefined-outer-name
+def read_from_image(image, hive_path, password=None, recover=True, volume=None,  # pylint: disable=redefined-outer-name
+                    cancel=None):
     """A Hive read from inside a disk image, with the .LOG1 and .LOG2 beside it in the same volume.
 
     volume is the label `hives` prints (p2_lba206848 and the like). It may be left out when only
@@ -1150,7 +1157,7 @@ def read_from_image(image, hive_path, password=None, recover=True, volume=None):
     names = {wanted, wanted + '.LOG1', wanted + '.LOG2'}
     found = {}
     for label, path, walker, node, size in _walk_image(
-            image, lambda p: p.replace('\\', '/').strip('/').upper() in names, password):
+            image, lambda p: p.replace('\\', '/').strip('/').upper() in names, password, cancel):
         if volume is not None and label != volume:
             continue
         key = path.replace('\\', '/').strip('/').upper()
