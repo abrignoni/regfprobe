@@ -506,7 +506,8 @@ class Hive:
 
     FAULT_LOG_LIMIT = 1000
 
-    def __init__(self, source, logs=None, recover=True, name=None):  # pylint: disable=redefined-outer-name
+    def __init__(self, source, logs=None, recover=True, name=None, on_fault=None):  # pylint: disable=redefined-outer-name
+        self.on_fault = on_fault
         primary, path = _read_source(source)
         self.path = path
         self.name = name or (os.path.basename(path) if path else 'hive')
@@ -597,6 +598,8 @@ class Hive:
         self.faults[kind] += 1
         if len(self.fault_log) < self.FAULT_LOG_LIMIT:
             self.fault_log.append((kind, offset, reason))
+        if self.on_fault is not None:
+            self.on_fault(kind, offset, reason)
 
     def cell(self, offset):
         """The data of the cell at offset (from the start of the hive bins data), as a memoryview.
@@ -1237,6 +1240,13 @@ class CompatValue:
             return raw.decode('utf-16-le', errors='replace').split('\x00')
         if self._value.type == 6:
             return self._value.raw
+        kind, raw = self._value.type, self._value.raw
+        if kind in (4, 5) and len(raw) < 4:
+            # fewer than four stored bytes: the number they make, zero-padded, so callers that do
+            # arithmetic on a REG_DWORD get an int as from python-registry (Value.data keeps the bytes)
+            return int.from_bytes(raw, 'little' if kind == 4 else 'big')
+        if kind == 11 and len(raw) < 8:
+            return int.from_bytes(raw, 'little')
         return self._value.data
 
     def raw_data(self):
@@ -1306,13 +1316,22 @@ class CompatKey:
 
 
 class CompatRegistry:
-    """Answers the python-registry calls Registry.Registry(...) callers make."""
+    """Answers the python-registry calls Registry.Registry(...) callers make.
+
+    The REG_* numbers are here under python-registry's names (RegSZ, RegBin, RegDWord and the
+    rest), with its two not-found exceptions. RegistryException is the base of every error
+    regfprobe raises (RegfError), the exception a caller catches for a file that is not a hive.
+    """
 
     RegistryKeyNotFoundException = RegistryKeyNotFoundException
     RegistryValueNotFoundException = RegistryValueNotFoundException
+    RegistryException = RegfError
+    RegNone, RegSZ, RegExpandSZ, RegBin, RegDWord, RegBigEndian, RegLink, RegMultiSZ = range(8)
+    RegResourceList, RegFullResourceDescriptor, RegResourceRequirementsList, RegQWord = range(8, 12)
 
-    def __init__(self, source, logs=None, recover=True):  # pylint: disable=redefined-outer-name
-        self.hive = source if isinstance(source, Hive) else Hive(source, logs=logs, recover=recover)
+    def __init__(self, source, logs=None, recover=True, on_fault=None):  # pylint: disable=redefined-outer-name
+        self.hive = source if isinstance(source, Hive) else Hive(source, logs=logs, recover=recover,
+                                                                on_fault=on_fault)
 
     def root(self):
         return CompatKey(self.hive.root())

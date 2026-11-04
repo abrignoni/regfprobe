@@ -256,6 +256,39 @@ class CompatTest(unittest.TestCase):
         with self.assertRaises(regfprobe.CompatRegistry.RegistryValueNotFoundException):
             key.value('Nope')
 
+    def test_constants_and_errors_python_registry_callers_use(self):
+        reg = regfprobe.CompatRegistry
+        self.assertEqual((reg.RegNone, reg.RegSZ, reg.RegExpandSZ, reg.RegBin, reg.RegDWord, reg.RegBigEndian,
+                          reg.RegLink, reg.RegMultiSZ, reg.RegResourceList, reg.RegFullResourceDescriptor,
+                          reg.RegResourceRequirementsList, reg.RegQWord), tuple(range(12)))
+        self.assertTrue(issubclass(reg.RegistryKeyNotFoundException, reg.RegistryException))
+        with self.assertRaises(reg.RegistryException):
+            regfprobe.CompatRegistry(b'not a hive' * 100)
+
+    @unittest.skipIf(Registry is None, 'python-registry not installed')
+    def test_constants_match_python_registry(self):
+        from Registry import RegistryParse  # pylint: disable=import-outside-toplevel
+        for name in ('RegNone', 'RegSZ', 'RegExpandSZ', 'RegBin', 'RegDWord', 'RegBigEndian', 'RegLink',
+                     'RegMultiSZ', 'RegResourceList', 'RegFullResourceDescriptor',
+                     'RegResourceRequirementsList', 'RegQWord'):
+            self.assertEqual(getattr(regfprobe.CompatRegistry, name), getattr(RegistryParse, name), name)
+
+    def test_a_short_dword_is_still_an_int(self):
+        key = self.reg.open('Values')
+        self.assertEqual(key.value('ShortDword').value(), 0x0201)
+        self.assertEqual(key.value('ShortDword').raw_data(), b'\x01\x02')
+
+    def test_on_fault_reports_each_damaged_structure_once(self):
+        data = sample()
+        sub2 = regfprobe.Hive(data).open_key('Software\\Sub2').offset
+        damaged = bytearray(data)
+        damaged[4096 + sub2 + 4:4096 + sub2 + 6] = b'XX'
+        seen = []
+        hive = regfprobe.Hive(bytes(damaged), on_fault=lambda kind, offset, reason: seen.append((kind, offset)))
+        for _ in range(2):
+            list(hive.walk())
+        self.assertEqual(seen, [('nk', sub2)])
+
     def test_timestamp_rounds_half_even_like_python_registry(self):
         stamp = self.reg.root().timestamp()  # DEFAULT_STAMP: an odd microsecond count and a 5
         whole = hivebuilder.DEFAULT_STAMP // 10
