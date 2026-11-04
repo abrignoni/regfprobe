@@ -119,8 +119,8 @@ def _iso(value):
 
 # ---------------------------------------------------------------------------------------------
 # Transaction log replay, copied from DLEAPP's scripts/registry_recovery.py as of DLEAPP commit
-# dc77aab (2026-10-29): the same functions, with the same results on the 14 dirty corpus hives
-# measured. DLEAPP still carries its own copy.
+# dc77aab (2026-10-29). xor32 and base_block wrap a slice in bytes() so a memoryview can be passed;
+# the rest is unchanged. Results matched DLEAPP's on the 61 dirty corpus hives measured.
 # ---------------------------------------------------------------------------------------------
 
 # The seed the specification gives for the Hash-1 and Hash-2 fields of a log entry, 82 EF 4D 88
