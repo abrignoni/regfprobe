@@ -16,7 +16,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        python: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+        python: ["3.10", "3.11", "3.12", "3.13", "3.14"]
         include:
           # python.org 3.14 on macOS ships Tk 9.0.3, which aborts on a window never shown;
           # the window test runs on 3.13 there (Tk 8.6).

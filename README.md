@@ -5,7 +5,7 @@ key last-written times, and export to JSON, CSV or a `.reg` file. When a hive is
 `.LOG1` and `.LOG2` transaction logs are replayed in memory first. It never writes to the hive
 or its logs.
 
-One file, `regfprobe.py`, Python 3 standard library only. Nothing to install, no admin rights,
+One file, `regfprobe.py`, Python 3.10 or later, standard library only. Nothing to install, no admin rights,
 no mounting. It is meant to be copied into other tools as it is (vendored), the way qnxprobe and
 ewfprobe are copied into the LEAPPs. A second, optional file, `regfprobe_gui.py`, puts a
 read-only window over it. That one is standard library too.
