@@ -413,7 +413,7 @@ class WindowTest(unittest.TestCase):
                 self.skipTest('no display')
             self.fail(f'window self-check failed ({done.returncode}): {done.stderr[-500:]}')
         self.assertEqual(json.loads(done.stdout), {
-            'window': 'built', 'menus': 4 + (sys.platform == 'darwin'), 'root_subkeys_shown': 4,
+            'window': 'built', 'menus': 5 + (sys.platform == 'darwin'), 'root_subkeys_shown': 4,
             'go_to_key': True, 'values_shown': 1, 'copied': True, 'missing_key_found': False,
             'timeline_rows': 11})
 

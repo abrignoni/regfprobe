@@ -31,6 +31,7 @@ from tkinter import font as tkfont
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import regfprobe  # noqa: E402  pylint: disable=wrong-import-position
 import regfprobe_theme  # noqa: E402  pylint: disable=wrong-import-position
+import regfprobe_report  # noqa: E402  pylint: disable=wrong-import-position
 
 _PLACEHOLDER = '\x00loading'
 _MAC = sys.platform == 'darwin'
@@ -140,6 +141,8 @@ class Window:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         root.geometry(self.settings.get('geometry', f'{width}x{height}'))
         root.minsize(760, 480)
         self.fixed = 'TkFixedFont'
+        self.report_entries = []   # (key path, include subkeys) chosen for the HTML report
+        self._banner_level = 'ok'
         self._build()
         self._menus()
         self._shortcuts()
@@ -334,6 +337,7 @@ class Window:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         files.add_separator()
         files.add_command(label='Export Selected Key...', accelerator=f'{_MOD_LABEL}+E', command=self.export_dialog)
         files.add_command(label='Save Timeline as CSV...', command=self.save_timeline)
+        files.add_command(label='Export HTML Report...', command=self.report_dialog)
         files.add_separator()
         self.replay = tk.BooleanVar(value=True)
         files.add_checkbutton(label='Replay Transaction Logs When Opening', variable=self.replay)
@@ -349,6 +353,14 @@ class Window:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         edit.add_separator()
         edit.add_command(label='Find...', accelerator=f'{_MOD_LABEL}+F', command=self.focus_search)
         menubar.add_cascade(label='Edit', menu=edit)
+        report = tk.Menu(menubar, tearoff=False)
+        report.add_command(label='Add Selected Key', accelerator=f'{_MOD_LABEL}+R',
+                           command=lambda: self.report_add(False))
+        report.add_command(label='Add Selected Key and Subkeys', command=lambda: self.report_add(True))
+        report.add_command(label='Keys in Report...', command=self.report_manage)
+        report.add_separator()
+        report.add_command(label='Export HTML Report...', command=self.report_dialog)
+        menubar.add_cascade(label='Report', menu=report)
         view = tk.Menu(menubar, tearoff=False)
         view.add_command(label='Go to Key...', accelerator=f'{_MOD_LABEL}+L', command=self.focus_address)
         view.add_command(label='Values', accelerator=f'{_MOD_LABEL}+1', command=lambda: self.tabs.select(0))
@@ -372,6 +384,9 @@ class Window:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.tree_menu.add_command(label='Copy Key Name', command=self.copy_key_name)
         self.tree_menu.add_separator()
         self.tree_menu.add_command(label='Export Key...', command=self.export_dialog)
+        self.tree_menu.add_separator()
+        self.tree_menu.add_command(label='Add Key to Report', command=lambda: self.report_add(False))
+        self.tree_menu.add_command(label='Add Key and Subkeys to Report', command=lambda: self.report_add(True))
         self.value_menu = tk.Menu(self.root, tearoff=False)
         self.value_menu.add_command(label='Copy Value Data', command=self.copy_data)
         self.value_menu.add_command(label='Copy Value Name', command=self.copy_name)
@@ -386,6 +401,7 @@ class Window:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         bind(f'<{_MOD}-o>', lambda _e: self.open_hive_dialog())
         bind(f'<{_MOD}-O>', lambda _e: self.open_image_dialog())     # with Shift
         bind(f'<{_MOD}-e>', lambda _e: self.export_dialog())
+        bind(f'<{_MOD}-r>', lambda _e: self.report_add(False))
         bind(f'<{_MOD}-f>', lambda _e: self.focus_search())
         bind(f'<{_MOD}-l>', lambda _e: self.focus_address())
         bind(f'<{_MOD}-C>', lambda _e: self.copy_path())             # with Shift
@@ -553,6 +569,7 @@ class Window:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.results.delete(*self.results.get_children())
         self.timeline_view.delete(*self.timeline_view.get_children())
         self.timeline_rows = []
+        self.report_entries = []
         self.page_label.configure(text='Every key by last-written time, newest first.')
         item = self._insert('', hive.root())
         self.tree.item(item, open=True)
@@ -580,6 +597,7 @@ class Window:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             level, title = 'warn', 'Read without replaying transaction logs'
         else:
             level, title = 'ok', 'Clean hive'
+        self._banner_level = level
         self.stripe.configure(background=_STRIPES[level])
         self.banner_title.configure(text=title)
         text = (f'{hive.path or hive.name}\nformat {hive.version}   embedded name "{h["file_name"]}"   '
@@ -991,6 +1009,121 @@ class Window:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         hive = self.hive
         self._run(f'Exporting {key.path or "(root)"}...', lambda: export(hive, key, fmt, path),
                   lambda _r: self.set_status(f'Exported {key.path or "(root)"} to {path}'))
+
+    # -- HTML report -------------------------------------------------------------------------
+
+    def report_add(self, deep):
+        key = self.selected_key()
+        if key is None:
+            return
+        entry = (key.path, deep)
+        self.report_entries = [e for e in self.report_entries if e[0] != key.path] + [entry]
+        self.set_status(f'Added {key.path or "(root)"}{" and subkeys" if deep else ""} to the report '
+                        f'({len(self.report_entries)} selection(s))')
+
+    def report_manage(self):
+        top = tk.Toplevel(self.root)
+        top.title('Keys in report')
+        top.transient(self.root)
+        top.geometry('760x360')
+        frame = ttk.Frame(top, padding=8)
+        frame.pack(fill='both', expand=True)
+        box = tk.Listbox(frame, selectmode='extended', font=self.fixed, activestyle='none')
+        box.pack(side='left', fill='both', expand=True)
+        bar = ttk.Scrollbar(frame, orient='vertical', command=box.yview)
+        bar.pack(side='left', fill='y')
+        box.configure(yscrollcommand=bar.set)
+
+        def refill():
+            box.delete(0, 'end')
+            for path, deep in self.report_entries:
+                box.insert('end', (path or '(root)') + ('   [+ subkeys]' if deep else ''))
+
+        def remove():
+            gone = set(box.curselection())
+            self.report_entries = [e for i, e in enumerate(self.report_entries) if i not in gone]
+            refill()
+
+        def clear():
+            self.report_entries = []
+            refill()
+
+        def go():
+            sel = box.curselection()
+            if sel:
+                self.jump_to(self.report_entries[sel[0]][0])
+
+        buttons = ttk.Frame(top, padding=(8, 0, 8, 8))
+        buttons.pack(fill='x')
+        ttk.Button(buttons, text='Go to Key', command=go).pack(side='left')
+        ttk.Button(buttons, text='Remove', command=remove).pack(side='left', padx=6)
+        ttk.Button(buttons, text='Clear All', command=clear).pack(side='left')
+        ttk.Button(buttons, text='Export HTML Report...',
+                   command=lambda: (top.destroy(), self.report_dialog())).pack(side='right')
+        ttk.Button(buttons, text='Close', command=top.destroy).pack(side='right', padx=6)
+        box.bind('<Double-1>', lambda _e: go())
+        box.bind('<Delete>', lambda _e: remove())
+        refill()
+
+    def _report_options(self):
+        """Ask which optional columns go in the report; None when cancelled. Choices are remembered."""
+        top = tk.Toplevel(self.root)
+        top.title('HTML report columns')
+        top.transient(self.root)
+        top.resizable(False, False)
+        frame = ttk.Frame(top, padding=14)
+        frame.pack(fill='both', expand=True)
+        ttk.Label(frame, text='Always included: Name, Type, Size and Interpreted (readable) data.').pack(anchor='w')
+        show_data = tk.BooleanVar(value=self.settings.get('report_show_data', True))
+        show_raw = tk.BooleanVar(value=self.settings.get('report_show_raw', True))
+        ttk.Checkbutton(frame, text='Include regfprobe data column (as regfprobe decodes it; hex for binary values)',
+                        variable=show_data).pack(anchor='w', pady=(10, 2))
+        ttk.Checkbutton(frame, text='Include raw bytes (hex) column (exactly as stored)',
+                        variable=show_raw).pack(anchor='w')
+        result = []
+
+        def ok():
+            result.append((show_data.get(), show_raw.get()))
+            top.destroy()
+
+        buttons = ttk.Frame(frame)
+        buttons.pack(fill='x', pady=(14, 0))
+        ttk.Button(buttons, text='Cancel', command=top.destroy).pack(side='right')
+        ttk.Button(buttons, text='Continue...', command=ok).pack(side='right', padx=6)
+        top.bind('<Return>', lambda _e: ok())
+        top.bind('<Escape>', lambda _e: top.destroy())
+        top.grab_set()
+        self.root.wait_window(top)
+        if not result:
+            return None
+        self.settings['report_show_data'], self.settings['report_show_raw'] = result[0]
+        return result[0]
+
+    def report_dialog(self):
+        if self.hive is None:
+            return
+        if not self.report_entries:
+            messagebox.showinfo('regfprobe', 'No keys chosen yet. Select a key, then use Report > Add '
+                                'Selected Key (or right-click it in the tree).', parent=self.root)
+            return
+        options = self._report_options()
+        if options is None:
+            return
+        path = filedialog.asksaveasfilename(title='Save the HTML report', parent=self.root,
+                                            defaultextension='.html', filetypes=(('HTML', '*.html'),))
+        if not path:
+            return
+        hive, entries = self.hive, list(self.report_entries)
+        banner = (self._banner_level, self.banner_title.cget('text'), self.banner.cget('text'))
+        title = f'Registry report: {os.path.basename(str(hive.path or hive.name))}'
+
+        def work():
+            with open(path, 'w', encoding='utf-8') as stream:
+                return regfprobe_report.write_report(hive, entries, stream, title=title, banner=banner,
+                                                     show_data=options[0], show_raw=options[1])
+
+        self._run('Writing HTML report...', work,
+                  lambda n: self.set_status(f'Wrote {n} key(s) to {path}'))
 
     def toggle_dark(self):
         self.set_dark(self.dark_var.get())

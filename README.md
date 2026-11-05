@@ -7,8 +7,9 @@ or its logs.
 
 One file, `regfprobe.py`, Python 3.10 or later, standard library only. Nothing to install, no admin rights,
 no mounting. It is meant to be copied into other tools as it is (vendored), the way qnxprobe and
-ewfprobe are copied into the LEAPPs. Two optional files, `regfprobe_gui.py` and its colours in
-`regfprobe_theme.py`, put a read-only window over it. They are standard library too.
+ewfprobe are copied into the LEAPPs. Optional files put a read-only window over it:
+`regfprobe_gui.py`, its colours in `regfprobe_theme.py`, and its HTML report in
+`regfprobe_report.py` and `regfprobe_interpret.py`. They are standard library too.
 
 The name comes from `regf`, the four bytes every hive file starts with.
 
@@ -68,8 +69,14 @@ only read.
 - a status bar with a progress bar and a Cancel button while a hive is opened, an image is
   searched for hives, or a search or timeline runs; the window stays usable meanwhile
 - View > Dark Mode, remembered between runs
+- a Report menu: add keys (with or without their subkeys) and export them as one HTML file with
+  each key's times and values, the raw bytes if you want them, and an Interpreted column. That
+  column decodes only SAM layouts with a published source (the user F and V values, the alias C
+  value, the RID stored as the Names value type) and pictures whose file header checks out; the
+  sources are listed in `regfprobe_interpret.py`. Every other value is shown as regfprobe
+  decodes it, never guessed at from its name or its bytes
 
-It has the usual menus (File, Edit, View, Help) and right-click menus on the tree, the values
+It has the usual menus (File, Edit, Report, View, Help) and right-click menus on the tree, the values
 and the result lists. Copy covers the key path, the value name, the value data and its bytes
 as hex. The main actions have shortcuts, and the right-click menus also open from the keyboard:
 
@@ -80,6 +87,7 @@ as hex. The main actions have shortcuts, and the right-click menus also open fro
 | Ctrl+F | find |
 | Ctrl+C, Ctrl+Shift+C | copy the selected value's data, or the key path |
 | Ctrl+E | export the selected key and everything under it (JSON, CSV, `.reg`) |
+| Ctrl+R | add the selected key to the HTML report |
 | Ctrl+1 to Ctrl+4 | Values, Security, Search, Timeline |
 | Return | open or close a key in the tree; go to the key of a search or timeline row |
 | Shift+F10, or the Menu key on Windows and Linux | the right-click menu of the selected row |
@@ -247,8 +255,8 @@ regfprobe does not decode the `settings.dat` composite types. A tool that needs 
 
 ## Vendoring
 
-Copy `regfprobe.py` verbatim (and `regfprobe_gui.py` with `regfprobe_theme.py` if you want the
-window), keep `LICENSE`
+Copy `regfprobe.py` verbatim (and `regfprobe_gui.py`, `regfprobe_theme.py`, `regfprobe_report.py`
+and `regfprobe_interpret.py` if you want the window), keep `LICENSE`
 beside it as `LICENSE-regfprobe`, and record the commit and SHA-256 you copied. Fix problems
 here and copy again, so the copies do not drift.
 
