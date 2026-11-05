@@ -7,8 +7,8 @@ or its logs.
 
 One file, `regfprobe.py`, Python 3.10 or later, standard library only. Nothing to install, no admin rights,
 no mounting. It is meant to be copied into other tools as it is (vendored), the way qnxprobe and
-ewfprobe are copied into the LEAPPs. A second, optional file, `regfprobe_gui.py`, puts a
-read-only window over it. That one is standard library too.
+ewfprobe are copied into the LEAPPs. Two optional files, `regfprobe_gui.py` and its colours in
+`regfprobe_theme.py`, put a read-only window over it. They are standard library too.
 
 The name comes from `regf`, the four bytes every hive file starts with.
 
@@ -67,6 +67,7 @@ only read.
   shown 1000 rows at a time, and saved to CSV whole
 - a status bar with a progress bar and a Cancel button while a hive is opened, an image is
   searched for hives, or a search or timeline runs; the window stays usable meanwhile
+- View > Dark Mode, remembered between runs
 
 It has the usual menus (File, Edit, View, Help) and right-click menus on the tree, the values
 and the result lists. Copy covers the key path, the value name, the value data and its bytes
@@ -85,7 +86,8 @@ as hex. The main actions have shortcuts, and the right-click menus also open fro
 | Esc | cancel what is running |
 
 There are no edit controls. Everything it shows comes from the same calls the command line
-makes. The one file it writes on its own is its window size and position, in
+makes. The one file it writes on its own holds its window size and position and whether dark
+mode is on, in
 `~/Library/Application Support/regfprobe/` (macOS), `%APPDATA%\regfprobe\` (Windows) or
 `~/.config/regfprobe/` (Linux). On Windows it asks Windows to draw it at the screen's own
 resolution instead of scaling it up.
@@ -245,7 +247,8 @@ regfprobe does not decode the `settings.dat` composite types. A tool that needs 
 
 ## Vendoring
 
-Copy `regfprobe.py` verbatim (and `regfprobe_gui.py` if you want the window), keep `LICENSE`
+Copy `regfprobe.py` verbatim (and `regfprobe_gui.py` with `regfprobe_theme.py` if you want the
+window), keep `LICENSE`
 beside it as `LICENSE-regfprobe`, and record the commit and SHA-256 you copied. Fix problems
 here and copy again, so the copies do not drift.
 

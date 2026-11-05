@@ -30,6 +30,7 @@ from tkinter import font as tkfont
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import regfprobe  # noqa: E402  pylint: disable=wrong-import-position
+import regfprobe_theme  # noqa: E402  pylint: disable=wrong-import-position
 import regfprobe_report  # noqa: E402  pylint: disable=wrong-import-position
 
 _PLACEHOLDER = '\x00loading'
@@ -146,11 +147,19 @@ class Window:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self._menus()
         self._shortcuts()
         root.protocol('WM_DELETE_WINDOW', self.close)
+        if self.dark_var.get():
+            self.set_dark(True)
         root.after(100, self._drain)
 
     # -- layout -----------------------------------------------------------------------------
 
     def _build(self):
+        self.theme = regfprobe_theme.Theme(self.root)
+        self._base_styles()
+        self._build_widgets()
+
+    def _base_styles(self):
+        """Styles regfprobe sets on whichever ttk theme is in use (re-run after a theme switch)."""
         style = ttk.Style(self.root)
         bold = tkfont.nametofont('TkDefaultFont').copy()
         bold.configure(weight='bold', size=bold.cget('size') + 2 if bold.cget('size') > 0 else bold.cget('size') - 2)
@@ -161,6 +170,11 @@ class Window:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         # don't, so text is clipped on Windows at >100% scaling. Size rows from the font.
         line = max(tkfont.nametofont(f).metrics('linespace') for f in ('TkDefaultFont', 'TkTextFont'))
         style.configure('Treeview', rowheight=line + 6)
+        # check and radio indicators are drawn at a fixed size by some themes (clam): scale them too
+        style.configure('TCheckbutton', indicatorsize=max(12, line * 2 // 3))
+        style.configure('TRadiobutton', indicatorsize=max(12, line * 2 // 3))
+
+    def _build_widgets(self):
 
         # address bar
         bar = ttk.Frame(self.root, padding=(8, 6, 8, 2))
@@ -353,6 +367,9 @@ class Window:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         view.add_command(label='Security', accelerator=f'{_MOD_LABEL}+2', command=lambda: self.tabs.select(1))
         view.add_command(label='Search', accelerator=f'{_MOD_LABEL}+3', command=lambda: self.tabs.select(2))
         view.add_command(label='Timeline', accelerator=f'{_MOD_LABEL}+4', command=lambda: self.tabs.select(3))
+        view.add_separator()
+        self.dark_var = tk.BooleanVar(value=bool(self.settings.get('dark', False)))
+        view.add_checkbutton(label='Dark Mode', variable=self.dark_var, command=self.toggle_dark)
         menubar.add_cascade(label='View', menu=view)
         helps = tk.Menu(menubar, tearoff=False, name='help')
         if not _MAC:
@@ -1107,6 +1124,14 @@ class Window:  # pylint: disable=too-many-instance-attributes,too-many-public-me
 
         self._run('Writing HTML report...', work,
                   lambda n: self.set_status(f'Wrote {n} key(s) to {path}'))
+
+    def toggle_dark(self):
+        self.set_dark(self.dark_var.get())
+        self.settings['dark'] = self.dark_var.get()
+
+    def set_dark(self, dark):
+        self.theme.apply(dark)
+        self._base_styles()   # banner fonts and row height belong to the theme just switched to
 
     def about(self):
         messagebox.showinfo('About regfprobe', (
