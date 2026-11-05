@@ -71,7 +71,8 @@ class Theme:
             style.map('TButton', background=[('pressed', c['select']), ('active', c['hover'])])
             style.configure('TEntry', fieldbackground=c['field'], foreground=c['fg'])
             style.configure('TCheckbutton', background=c['bg'], indicatorbackground=c['field'],
-                            indicatorforeground=c['fg'])
+                            indicatorforeground=c['select_fg'], upperbordercolor=c['muted'],
+                            lowerbordercolor=c['muted'])
             style.map('TCheckbutton', background=[('active', c['bg'])],
                       indicatorbackground=[('selected', c['select'])])
             style.configure('TNotebook', background=c['bg'], bordercolor=c['line'])
