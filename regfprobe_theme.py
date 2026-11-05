@@ -75,6 +75,7 @@ class Theme:
                             lowerbordercolor=c['muted'])
             style.map('TCheckbutton', background=[('active', c['bg'])],
                       indicatorbackground=[('selected', c['select'])])
+            self._checkbox_images(c)
             style.configure('TNotebook', background=c['bg'], bordercolor=c['line'])
             style.configure('TNotebook.Tab', background=c['panel'], foreground=c['muted'], padding=(10, 3))
             style.map('TNotebook.Tab', background=[('selected', c['bg'])], foreground=[('selected', c['fg'])])
@@ -125,6 +126,51 @@ class Theme:
                     self._remember(widget, ['background'])
                 self._recolour(widget, {'background': DARK['bg']} if dark else None)
                 _title_bar(widget, dark)
+
+    def _checkbox_images(self, c):
+        """Draw a ✓ checkbox (clam draws an ✕) at a size that follows the font, and use it in dark mode."""
+        from tkinter import font as tkfont  # pylint: disable=import-outside-toplevel
+        size = max(12, tkfont.nametofont('TkDefaultFont').metrics('linespace') * 2 // 3)
+        if getattr(self, '_check_size', None) != size:
+            self._check_size = size
+            self._check_images = (self._box(size, c, False), self._box(size, c, True))
+            self.style.element_create('DarkCheck.indicator', 'image', self._check_images[0],
+                                      ('selected', self._check_images[1]),
+                                      ('alternate', self._check_images[0]), border=0, sticky='')
+        self.style.layout('TCheckbutton', [('Checkbutton.padding', {'sticky': 'nswe', 'children': [
+            ('DarkCheck.indicator', {'side': 'left', 'sticky': ''}),
+            ('Checkbutton.focus', {'side': 'left', 'sticky': 'w', 'children': [
+                ('Checkbutton.label', {'sticky': 'nswe'})]})]})])
+        self.style.configure('TCheckbutton', padding=(2, 2), indicatormargin=0)
+
+    def _box(self, n, c, checked):
+        img = tk.PhotoImage(master=self.root, width=n + 6, height=n)   # 6px gap before the label
+        fill = c['select'] if checked else c['field']
+        edge = c['select'] if checked else c['muted']
+        rows = []
+        for y in range(n):
+            row = []
+            for x in range(n):
+                corner = (x in (0, n - 1)) and (y in (0, n - 1))
+                border = x in (0, 1, n - 2, n - 1) and n > 14 or x in (0, n - 1) or y in (0, n - 1)                     or (n > 14 and y in (1, n - 2))
+                row.append(c['bg'] if corner else edge if border else fill)
+            row += [c['bg']] * 6
+            rows.append('{' + ' '.join(row) + '}')
+        img.put(' '.join(rows))
+        if checked:   # tick from about (22%, 52%) down to (42%, 72%) then up to (78%, 28%)
+            t = max(2, n // 8)
+            pts = [(0.22, 0.52), (0.42, 0.72), (0.78, 0.28)]
+            for (x0, y0), (x1, y1) in zip(pts, pts[1:]):
+                steps = n * 2
+                for i in range(steps + 1):
+                    x = (x0 + (x1 - x0) * i / steps) * n
+                    y = (y0 + (y1 - y0) * i / steps) * n
+                    for dx in range(t):
+                        for dy in range(t):
+                            px, py = int(x - t / 2 + dx), int(y - t / 2 + dy)
+                            if 1 < px < n - 2 and 1 < py < n - 2:
+                                img.put(c['select_fg'], (px, py))
+        return img
 
     def _recolour(self, widget, colours):
         colours = colours if colours is not None else self._light_defaults.get(widget, {})
