@@ -24,7 +24,9 @@ h1{font-size:22px;margin:0 0 4px}h2{font-size:16px;margin:0;word-break:break-all
 white-space:pre-wrap;font-size:13px}
 .banner b{display:block;font-size:15px;margin-bottom:4px}
 .banner.warn{border-color:var(--warn)}.banner.bad{border-color:var(--bad)}.banner.info{border-color:var(--info)}
-nav{margin:0 0 24px}nav ol{margin:6px 0 0;padding-left:22px}nav a{color:var(--accent);word-break:break-all}
+nav{margin:0 0 24px}nav h3{font-size:14px;margin:14px 0 4px}nav .count{color:var(--muted);font-weight:400}
+.hive{margin:0 0 32px}.hivehead{font-size:18px;margin:28px 0 10px;padding-bottom:6px;border-bottom:2px solid var(--line)}
+nav ol{margin:6px 0 0;padding-left:22px}nav a{color:var(--accent);word-break:break-all}
 section{border:1px solid var(--line);border-radius:6px;margin:0 0 18px;overflow:hidden}
 section header{background:var(--head);padding:10px 14px;border-bottom:1px solid var(--line)}
 section header p{margin:4px 0 0;color:var(--muted);font-size:12.5px}
@@ -87,7 +89,7 @@ def _value_rows(key, show_data=True, show_raw=True):
 def _key_section(key, anchor, show_data=True, show_raw=True):
     path = key.path or '(root)'
     rows = _value_rows(key, show_data, show_raw)
-    head = (f'<header><h2>{_e(path)}</h2><p>Last written {_e(regfprobe._iso(key.last_written_raw))} UTC'  # pylint: disable=protected-access
+    head = (f'<header><h2>{_e(path)}</h2><p>Last written {_e(regfprobe._iso(key.last_written_raw).rstrip("Z"))} UTC'  # pylint: disable=protected-access
             f' &middot; FILETIME {key.last_written_raw} &middot; {len(rows)} value(s)'
             f' &middot; cell 0x{key.offset:x}'
             + (f' &middot; class name "{_e(key.class_name)}"' if key.class_name else '')
@@ -102,9 +104,12 @@ def _key_section(key, anchor, show_data=True, show_raw=True):
     return f'<section id="{anchor}">{head}{body}</section>'
 
 
-def write_report(hive, entries, stream, title='regfprobe report', banner=('ok', '', ''), examiner='',
-                 show_data=True, show_raw=True):
-    """entries: list of (key path, include_subkeys). banner: (level, title, text) as the GUI shows it."""
+def hive_label(hive):
+    """Where a hive came from, short: the part after '::' for a hive read from a disk image."""
+    return str(hive.path or hive.name).split('::')[-1]
+
+
+def _keys(hive, entries):
     keys, seen = [], set()
     for path, deep in entries:
         start = hive.open_key(path)
@@ -112,10 +117,39 @@ def write_report(hive, entries, stream, title='regfprobe report', banner=('ok', 
             if key.offset not in seen:
                 seen.add(key.offset)
                 keys.append(key)
-    level, banner_title, banner_text = banner
+    return keys
+
+
+def write_report(hive, entries, stream, title='regfprobe report', banner=('ok', '', ''), examiner='',
+                 show_data=True, show_raw=True):
+    """entries: list of (key path, include_subkeys). banner: (level, title, text) as the GUI shows it."""
+    return write_multi_report([(hive, banner, entries)], stream, title=title, examiner=examiner,
+                              show_data=show_data, show_raw=show_raw)
+
+
+def write_multi_report(groups, stream, title='regfprobe report', examiner='', show_data=True, show_raw=True):
+    """groups: list of (hive, banner, entries), one per hive, in the order they should appear.
+
+    With one hive the page looks as it did before; with several, each hive gets its own heading,
+    trust banner and contents list.
+    """
+    built = [(hive, banner, entries, _keys(hive, entries)) for hive, banner, entries in groups]
+    total = sum(len(g[3]) for g in built)
+    many = len(built) > 1
     now = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
-    toc = ''.join(f'<li><a href="#k{i}">{_e(k.path or "(root)")}</a></li>' for i, k in enumerate(keys))
-    chosen = ''.join(f'<li>{_e(p or "(root)")}{" and subkeys" if d else ""}</li>' for p, d in entries)
+    nav, body = [], []
+    for g, (hive, (level, banner_title, banner_text), entries, keys) in enumerate(built):
+        label = hive_label(hive)
+        toc = ''.join(f'<li><a href="#h{g}k{i}">{_e(k.path or "(root)")}</a></li>' for i, k in enumerate(keys))
+        chosen = ''.join(f'<li>{_e(p or "(root)")}{" and subkeys" if d else ""}</li>' for p, d in entries)
+        nav.append((f'<h3><a href="#h{g}">{_e(label)}</a> <span class="count">{len(keys)} key(s)</span></h3>'
+                    if many else '')
+                   + f'<strong>Selected</strong><ul>{chosen}</ul><strong>Keys in this report</strong><ol>{toc}</ol>')
+        body.append(f'<div class="hive" id="h{g}">'
+                    + (f'<h2 class="hivehead">Hive: {_e(label)}</h2>' if many else '')
+                    + f'<div class="banner {_e(level)}"><b>{_e(banner_title)}</b>{_e(banner_text)}</div>'
+                    + ''.join(_key_section(k, f'h{g}k{i}', show_data, show_raw) for i, k in enumerate(keys))
+                    + '</div>')
     stream.write(
         '<!doctype html><html lang="en"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
@@ -123,12 +157,11 @@ def write_report(hive, entries, stream, title='regfprobe report', banner=('ok', 
         f'<h1>{_e(title)}</h1>'
         f'<p class="meta">Generated {now} UTC by regfprobe {_e(regfprobe.__version__)}'
         + (f' &middot; Examiner: {_e(examiner)}' if examiner else '')
-        + f' &middot; {len(keys)} key(s)</p>'
-        f'<div class="banner {_e(level)}"><b>{_e(banner_title)}</b>{_e(banner_text)}</div>'
-        f'<nav><strong>Selected</strong><ul>{chosen}</ul><strong>Keys in this report</strong><ol>{toc}</ol></nav>'
-        + ''.join(_key_section(k, f'k{i}', show_data, show_raw) for i, k in enumerate(keys))
+        + (f' &middot; {len(built)} hives' if many else '')
+        + f' &middot; {total} key(s)</p>'
+        + f'<nav>{"".join(nav)}</nav>' + ''.join(body)
         + '<footer>Key times are last-written times from the hive, in UTC. Interpreted fields come only '
         'from SAM layouts with a published source (listed in regfprobe_interpret.py) and from pictures '
         'whose file header checks out; every other value is shown as regfprobe decodes it. Raw bytes '
         'are shown as stored.</footer></main></body></html>\n')
-    return len(keys)
+    return total

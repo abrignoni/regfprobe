@@ -95,6 +95,18 @@ def _load_settings():
         return {}
 
 
+def _short_hive(hive):
+    """A short name for where a hive came from: 'SAM (CASE.E01)', 'Users/jdoe/NTUSER.DAT (CASE.E01)'."""
+    source = str(hive.path or hive.name).replace('\\', '/')
+    image, _sep, inside = source.rpartition('::')
+    parts = inside.split('/')
+    if len(parts) > 2 and parts[1].lower() == 'users':      # volume/Users/<name>/...: keep the user
+        name = '/'.join(parts[1:4]) + ('/.../' + parts[-1] if len(parts) > 4 else '')
+    else:
+        name = parts[-1]
+    return f'{name} ({os.path.basename(image)})' if image else name
+
+
 def _save_settings(settings):
     path = _settings_path()
     try:
@@ -141,7 +153,7 @@ class Window:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         root.geometry(self.settings.get('geometry', f'{width}x{height}'))
         root.minsize(760, 480)
         self.fixed = 'TkFixedFont'
-        self.report_entries = []   # (key path, include subkeys) chosen for the HTML report
+        self.report_entries = []   # (hive, key path, include subkeys) for the HTML report; can span hives
         self._banner_level = 'ok'
         self._build()
         self._menus()
@@ -569,7 +581,6 @@ class Window:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.results.delete(*self.results.get_children())
         self.timeline_view.delete(*self.timeline_view.get_children())
         self.timeline_rows = []
-        self.report_entries = []
         self.page_label.configure(text='Every key by last-written time, newest first.')
         item = self._insert('', hive.root())
         self.tree.item(item, open=True)
@@ -582,9 +593,17 @@ class Window:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self._banner()
 
     def _banner(self):
-        hive = self.hive
-        if hive is None:
+        if self.hive is None:
             return
+        level, title, text = self._banner_info(self.hive)
+        self._banner_level = level
+        self.stripe.configure(background=_STRIPES[level])
+        self.banner_title.configure(text=title)
+        self.banner.configure(text=text)
+
+    @staticmethod
+    def _banner_info(hive):
+        """(level, title, text) describing how far to trust a hive, as the banner shows it."""
         h = hive.header
         state = hive.recovery.get('state')
         if hive.faults:
@@ -597,16 +616,13 @@ class Window:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             level, title = 'warn', 'Read without replaying transaction logs'
         else:
             level, title = 'ok', 'Clean hive'
-        self._banner_level = level
-        self.stripe.configure(background=_STRIPES[level])
-        self.banner_title.configure(text=title)
         text = (f'{hive.path or hive.name}\nformat {hive.version}   embedded name "{h["file_name"]}"   '
                 f'base block last written {_iso(h["last_written"])} UTC')
         if state != 'clean':
             text += f'\n{regfprobe.summarise_recovery(hive.recovery)}'
         if hive.faults:
             text += '\nSkipped so far: ' + ', '.join(f'{kind} {count}' for kind, count in sorted(hive.faults.items()))
-        self.banner.configure(text=text)
+        return level, title, text
 
     # -- tree -------------------------------------------------------------------------------
 
@@ -1016,16 +1032,18 @@ class Window:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         key = self.selected_key()
         if key is None:
             return
-        entry = (key.path, deep)
-        self.report_entries = [e for e in self.report_entries if e[0] != key.path] + [entry]
+        hive = self.hive
+        self.report_entries = [e for e in self.report_entries
+                               if not (e[0] is hive and e[1] == key.path)] + [(hive, key.path, deep)]
+        hives = len({id(e[0]) for e in self.report_entries})
         self.set_status(f'Added {key.path or "(root)"}{" and subkeys" if deep else ""} to the report '
-                        f'({len(self.report_entries)} selection(s))')
+                        f'({len(self.report_entries)} selection(s) from {hives} hive(s))')
 
     def report_manage(self):
         top = tk.Toplevel(self.root)
         top.title('Keys in report')
         top.transient(self.root)
-        top.geometry('760x360')
+        top.geometry('980x380')
         frame = ttk.Frame(top, padding=8)
         frame.pack(fill='both', expand=True)
         box = tk.Listbox(frame, selectmode='extended', font=self.fixed, activestyle='none')
@@ -1036,8 +1054,9 @@ class Window:  # pylint: disable=too-many-instance-attributes,too-many-public-me
 
         def refill():
             box.delete(0, 'end')
-            for path, deep in self.report_entries:
-                box.insert('end', (path or '(root)') + ('   [+ subkeys]' if deep else ''))
+            for hive, path, deep in self.report_entries:
+                box.insert('end', f'{_short_hive(hive)}  >  ' + (path or '(root)')
+                           + ('   [+ subkeys]' if deep else ''))
 
         def remove():
             gone = set(box.curselection())
@@ -1051,7 +1070,10 @@ class Window:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         def go():
             sel = box.curselection()
             if sel:
-                self.jump_to(self.report_entries[sel[0]][0])
+                hive, path, _deep = self.report_entries[sel[0]]
+                if hive is not self.hive:
+                    self.show_hive(hive)
+                self.jump_to(path)
 
         buttons = ttk.Frame(top, padding=(8, 0, 8, 8))
         buttons.pack(fill='x')
@@ -1100,8 +1122,6 @@ class Window:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         return result[0]
 
     def report_dialog(self):
-        if self.hive is None:
-            return
         if not self.report_entries:
             messagebox.showinfo('regfprobe', 'No keys chosen yet. Select a key, then use Report > Add '
                                 'Selected Key (or right-click it in the tree).', parent=self.root)
@@ -1113,14 +1133,21 @@ class Window:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                                             defaultextension='.html', filetypes=(('HTML', '*.html'),))
         if not path:
             return
-        hive, entries = self.hive, list(self.report_entries)
-        banner = (self._banner_level, self.banner_title.cget('text'), self.banner.cget('text'))
-        title = f'Registry report: {os.path.basename(str(hive.path or hive.name))}'
+        groups = []   # one per hive, in the order hives were first added
+        for hive, key_path, deep in self.report_entries:
+            for group in groups:
+                if group[0] is hive:
+                    group[2].append((key_path, deep))
+                    break
+            else:
+                groups.append((hive, self._banner_info(hive), [(key_path, deep)]))
+        names = [os.path.basename(regfprobe_report.hive_label(g[0])) for g in groups]
+        title = 'Registry report: ' + ', '.join(names)
 
         def work():
             with open(path, 'w', encoding='utf-8') as stream:
-                return regfprobe_report.write_report(hive, entries, stream, title=title, banner=banner,
-                                                     show_data=options[0], show_raw=options[1])
+                return regfprobe_report.write_multi_report(groups, stream, title=title,
+                                                           show_data=options[0], show_raw=options[1])
 
         self._run('Writing HTML report...', work,
                   lambda n: self.set_status(f'Wrote {n} key(s) to {path}'))
