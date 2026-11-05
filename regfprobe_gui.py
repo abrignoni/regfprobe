@@ -154,6 +154,10 @@ class Window:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self._bold = bold   # kept: Tk forgets a font whose Python object is collected
         style.configure('Banner.TLabel', padding=(8, 2, 8, 4))
         style.configure('BannerBold.TLabel', padding=(8, 4, 8, 0), font=bold)
+        # Treeview rows default to a fixed ~20px; under DPI awareness fonts scale but rows
+        # don't, so text is clipped on Windows at >100% scaling. Size rows from the font.
+        line = max(tkfont.nametofont(f).metrics('linespace') for f in ('TkDefaultFont', 'TkTextFont'))
+        style.configure('Treeview', rowheight=line + 6)
 
         # address bar
         bar = ttk.Frame(self.root, padding=(8, 6, 8, 2))
