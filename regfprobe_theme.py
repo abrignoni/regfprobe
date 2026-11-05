@@ -44,6 +44,8 @@ class Theme:
         self.light_theme = self.style.theme_use()
         self.dark = False
         self._light_defaults = {}
+        self._check_size = None
+        self._check_images = ()
         root.bind_class('Toplevel', '<Map>', lambda e: _title_bar(e.widget, self.dark), add='+')
 
     def _remember(self, widget, keys):
@@ -131,7 +133,7 @@ class Theme:
         """Draw a ✓ checkbox (clam draws an ✕) at a size that follows the font, and use it in dark mode."""
         from tkinter import font as tkfont  # pylint: disable=import-outside-toplevel
         size = max(12, tkfont.nametofont('TkDefaultFont').metrics('linespace') * 2 // 3)
-        if getattr(self, '_check_size', None) != size:
+        if self._check_size != size:
             self._check_size = size
             self._check_images = (self._box(size, c, False), self._box(size, c, True))
             self.style.element_create('DarkCheck.indicator', 'image', self._check_images[0],
