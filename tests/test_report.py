@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import hivebuilder  # noqa: E402  pylint: disable=wrong-import-position
 import regfprobe  # noqa: E402  pylint: disable=wrong-import-position
 import regfprobe_interpret  # noqa: E402  pylint: disable=wrong-import-position
+import regfprobe_profile  # noqa: E402  pylint: disable=wrong-import-position
 import regfprobe_report  # noqa: E402  pylint: disable=wrong-import-position
 
 
@@ -135,6 +136,71 @@ class InterpretTest(unittest.TestCase):
 
     def test_strings_are_left_to_regfprobe(self):
         self.assertEqual(regfprobe_interpret.interpret(_Key('X'), _Value('S', b'a\x00', 'REG_SZ', 1)), [])
+
+
+class _Hive:  # pylint: disable=too-few-public-methods
+    def __init__(self, path):
+        self.path, self.name = path, None
+
+
+class ProfileTest(unittest.TestCase):
+    def test_hive_patterns(self):
+        pattern = regfprobe_profile.hive_pattern
+        self.assertEqual(pattern(_Hive('D:/c/x.E01::p3_lba1/Windows/System32/config/SAM')),
+                         'Windows/System32/config/SAM')
+        self.assertEqual(pattern(_Hive('x.E01::p3/Users/borch/NTUSER.DAT')), 'Users/*/NTUSER.DAT')
+        self.assertEqual(pattern(_Hive('C:/exports/SYSTEM')), 'Windows/System32/config/SYSTEM')
+        self.assertEqual(pattern(_Hive('C:/exports/ntuser.dat')), 'Users/*/NTUSER.DAT')
+        self.assertIsNone(pattern(_Hive('C:/exports/thing.bin')))
+
+    def test_star_is_one_folder_and_logs_match(self):
+        rx = regfprobe_profile._regex('Users/*/NTUSER.DAT')  # pylint: disable=protected-access
+        self.assertTrue(rx.fullmatch('USERS/BORCH/NTUSER.DAT'))
+        self.assertTrue(rx.fullmatch('USERS/BORCH/NTUSER.DAT.LOG1'))
+        self.assertFalse(rx.fullmatch('USERS/A/B/NTUSER.DAT'))
+
+    def test_sam_account_keys_become_every_account(self):
+        general = regfprobe_profile.general_key
+        sam = 'Windows/System32/config/SAM'
+        self.assertEqual(general(sam, r'SAM\Domains\Account\Users\000003E9'), r'SAM\Domains\Account\Users\*')
+        self.assertEqual(general(sam, r'SAM\Domains\Account\Users\Names\borch'),
+                         r'SAM\Domains\Account\Users\Names\*')
+        self.assertEqual(general(sam, r'SAM\Domains\Account\Users'), r'SAM\Domains\Account\Users')
+        self.assertEqual(general(sam, r'SAM\Domains\Builtin\Aliases\00000220'),
+                         r'SAM\Domains\Builtin\Aliases\00000220')
+        self.assertEqual(general('Windows/System32/config/SOFTWARE', r'Users\X'), r'Users\X')
+
+    def test_control_sets_become_current(self):
+        general = regfprobe_profile.general_key
+        system = 'Windows/System32/config/SYSTEM'
+        self.assertEqual(general(system, r'ControlSet002\Control\TimeZoneInformation'),
+                         r'CurrentControlSet\Control\TimeZoneInformation')
+        self.assertEqual(general(system, 'ControlSet001'), 'CurrentControlSet')
+        self.assertEqual(general(system, r'Select'), 'Select')
+        self.assertEqual(general('Windows/System32/config/SOFTWARE', r'ControlSet001\X'), r'ControlSet001\X')
+
+    def test_current_control_set_without_select_finds_nothing(self):
+        hive = regfprobe.Hive(hivebuilder.build(hivebuilder.sample_tree()))
+        self.assertIsNone(regfprobe_profile.current_control_set(hive))
+        self.assertEqual(regfprobe_profile.expand(hive, r'CurrentControlSet\Control'), [])
+
+    def test_star_expands_to_every_subkey(self):
+        hive = regfprobe.Hive(hivebuilder.build(hivebuilder.sample_tree()))
+        everything = regfprobe_profile.expand(hive, '*')
+        self.assertEqual(everything, [k.path for k in hive.root().subkeys()])
+        self.assertEqual(regfprobe_profile.expand(hive, r'No\Such'), [])
+
+    def test_save_and_load(self):
+        import tempfile  # pylint: disable=import-outside-toplevel
+        entries = [('Windows/System32/config/SAM', r'SAM\Domains', True), ('Users/*/NTUSER.DAT', 'Software', False)]
+        with tempfile.TemporaryDirectory() as folder:
+            path = os.path.join(folder, 'p.json')
+            regfprobe_profile.save(path, entries)
+            self.assertEqual(regfprobe_profile.load(path), entries)
+            with open(path, 'w', encoding='utf-8') as handle:
+                handle.write('{"something": 1}')
+            with self.assertRaises(ValueError):
+                regfprobe_profile.load(path)
 
 
 if __name__ == '__main__':
