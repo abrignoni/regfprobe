@@ -73,8 +73,8 @@ class InterpretTest(unittest.TestCase):
         struct.pack_into('<HH', data, 0x40, 2, 7)
         got = dict(regfprobe_interpret.interpret(_Key(self.users), _Value('F', bytes(data))))
         self.assertEqual(got['Password last set'], '2022-11-23 00:40:33 UTC')
-        self.assertEqual(got['Last logon'], 'Never / not set')
-        self.assertEqual(got['Account expires'], 'Never (no expiry)')
+        self.assertEqual(got['Last logon'], 'Never (0)')
+        self.assertEqual(got['Account expires'], 'not a date: stored as 0x7FFFFFFFFFFFFFFF')
         self.assertTrue(got['RID'].startswith('1001 '))
         self.assertIn('Password does not expire', got['Account flags'])
         self.assertEqual((got['Failed logon count'], got['Logon count']), ('2', '7'))
@@ -85,24 +85,41 @@ class InterpretTest(unittest.TestCase):
         struct.pack_into('<II', data, 0x0C, 0, len(name))
         got = dict(regfprobe_interpret.interpret(_Key(self.users), _Value('V', bytes(data))))
         self.assertEqual(got['User name'], 'borch')
-        self.assertEqual(got['NT hash'], 'not stored')
+        self.assertEqual(got['NT hash entry'], '0 bytes (not decoded here)')
 
     def test_rid_in_names_default_value_type(self):
         key = _Key('SAM\\Domains\\Account\\Users\\Names\\borch')
         got = regfprobe_interpret.interpret(key, _Value('', b'', 'unknown type 0x3e9', 0x3E9))
         self.assertTrue(got[0][1].startswith('1001 (0x3e9)'))
 
-    def test_generic_binaries(self):
+    def test_binaries_without_a_known_layout_are_not_guessed_at(self):
         key = _Key('Software\\X')
-        sid = bytes([1, 2, 0, 0, 0, 0, 0, 5]) + struct.pack('<II', 32, 544)
-        self.assertEqual(regfprobe_interpret.interpret(key, _Value('OwnerSid', sid)), [('SID', 'S-1-5-32-544')])
-        self.assertEqual(regfprobe_interpret.interpret(key, _Value('Mail', 'a@b.c'.encode('utf-16-le'))),
-                         [('Text', 'a@b.c')])
-        guid = bytes.fromhex('8f88f9d7fce3b0499ea6a85b5f392a4f')
-        self.assertEqual(regfprobe_interpret.interpret(key, _Value('ProviderGUID', guid)),
-                         [('GUID', '{D7F9888F-E3FC-49B0-9EA6-A85B5F392A4F}')])
-        self.assertEqual(regfprobe_interpret.interpret(key, _Value('Count', b'\x05\x00\x00\x00')),
-                         [('Number', '5 (0x5)')])
+        for name, data in (('LastWrite', struct.pack('<Q', 133136376335151712)),   # FILETIME-shaped
+                           ('Count', struct.pack('<I', 1033)),                       # decodes as U+0409
+                           ('Mail', 'a@b.c'.encode('utf-16-le')),
+                           ('OwnerSid', bytes([1, 2, 0, 0, 0, 0, 0, 5]) + struct.pack('<II', 32, 544)),
+                           ('ProviderGUID', bytes.fromhex('8f88f9d7fce3b0499ea6a85b5f392a4f')),
+                           ('Blob', b'BM' + bytes(40))):                              # not a BMP header
+            self.assertEqual(regfprobe_interpret.interpret(key, _Value(name, data)), [], name)
+
+    def test_pictures_need_a_valid_header(self):
+        png = b'\x89PNG\r\n\x1a\n' + struct.pack('>I', 13) + b'IHDR' + bytes(17)
+        got = regfprobe_interpret.interpret(_Key('Software\\X'), _Value('Logo', png))
+        self.assertTrue(got[0][1].startswith('PNG,'))
+        self.assertTrue(got[1][1].startswith('data:image/png;base64,'))
+        bmp = b'BM' + struct.pack('<IIIIii', 70, 0, 54, 40, 2, 2) + bytes(70 - 26)
+        tile = _Value('UserTile', b'\x01' * 16 + bmp)
+        got = regfprobe_interpret.interpret(_Key(self.users), tile)
+        self.assertEqual(got[0][1], 'BMP 2x2, 70 bytes at offset 16')
+        # outside UserTile a picture must start the value
+        self.assertEqual(regfprobe_interpret.interpret(_Key('Software\\X'), _Value('Logo', b'\x01' + png)), [])
+
+    def test_times_that_no_date_holds_are_shown_as_stored(self):
+        data = bytearray(0x44)
+        struct.pack_into('<Q', data, 0x20, 0x7FFFFFFFFFFFFFFF)
+        got = dict(regfprobe_interpret.interpret(_Key(self.users), _Value('F', bytes(data))))
+        self.assertEqual(got['Account expires'], 'not a date: stored as 0x7FFFFFFFFFFFFFFF')
+        self.assertEqual(got['Last logon'], 'Never (0)')
 
     def test_strings_are_left_to_regfprobe(self):
         self.assertEqual(regfprobe_interpret.interpret(_Key('X'), _Value('S', b'a\x00', 'REG_SZ', 1)), [])

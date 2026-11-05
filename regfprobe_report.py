@@ -48,7 +48,7 @@ def _e(text):
     return html.escape('' if text is None else str(text))
 
 
-def _interp(key, value):
+def _interp(key, value, show_data=True):
     try:
         pairs = regfprobe_interpret.interpret(key, value)
     except Exception as error:  # pylint: disable=broad-except
@@ -56,11 +56,13 @@ def _interp(key, value):
     out = []
     for label, text in pairs:
         if label == '__image__':
-            out.append(f'<img src="{text}" alt="user picture">')
+            out.append(f'<img src="{text}" alt="picture stored in the value">')
         else:
             out.append(f'<div><b>{_e(label)}:</b> {_e(text)}</div>')
-    if not out and value.raw and value.type_name not in ('REG_BINARY', 'REG_NONE')             and not value.type_name.startswith('unknown'):
-        out.append(_e(value.data_text()))   # strings and numbers: regfprobe's own decoding is the readable form
+    binary = value.type_name in ('REG_BINARY', 'REG_NONE') or value.type_name.startswith('unknown')
+    if not out and value.raw and (not binary or not show_data):
+        # no known layout: regfprobe's own decoding, so nothing is lost when its column is hidden
+        out.append(_e(value.data_text()))
     return ''.join(out) or '<span class="none">-</span>'
 
 
@@ -74,7 +76,7 @@ def _value_rows(key, show_data=True, show_raw=True):
         notes = '; '.join(v.notes)
         rows.append(
             f'<tr><td>{_e(v.name or "(default)")}</td><td>{_e(v.type_name)}</td><td>{v.size}</td>'
-            f'<td class="interp">{_interp(key, v)}'
+            f'<td class="interp">{_interp(key, v, show_data)}'
             + (f'<div class="note">{_e(notes)}</div>' if notes and not show_data else '') + '</td>'
             + (f'<td class="data">{_e(v.data_text())}'
                + (f'<div class="note">{_e(notes)}</div>' if notes else '') + '</td>' if show_data else '')
@@ -125,6 +127,8 @@ def write_report(hive, entries, stream, title='regfprobe report', banner=('ok', 
         f'<div class="banner {_e(level)}"><b>{_e(banner_title)}</b>{_e(banner_text)}</div>'
         f'<nav><strong>Selected</strong><ul>{chosen}</ul><strong>Keys in this report</strong><ol>{toc}</ol></nav>'
         + ''.join(_key_section(k, f'k{i}', show_data, show_raw) for i, k in enumerate(keys))
-        + '<footer>Times are key last-written times from the hive, in UTC. Data is decoded as regfprobe '
-        'decodes it; raw bytes are shown as stored.</footer></main></body></html>\n')
+        + '<footer>Key times are last-written times from the hive, in UTC. Interpreted fields come only '
+        'from SAM layouts with a published source (listed in regfprobe_interpret.py) and from pictures '
+        'whose file header checks out; every other value is shown as regfprobe decodes it. Raw bytes '
+        'are shown as stored.</footer></main></body></html>\n')
     return len(keys)
