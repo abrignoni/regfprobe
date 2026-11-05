@@ -390,6 +390,8 @@ class Window:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         helps = tk.Menu(menubar, tearoff=False, name='help')
         if not _MAC:
             helps.add_command(label='About regfprobe', command=self.about)
+        helps.add_command(label='User Manual', accelerator='F1', command=self.open_manual)
+        helps.add_command(label='Save Manual as PDF...', command=self.save_manual_pdf)
         helps.add_command(label='Keyboard Shortcuts', command=self.shortcuts_help)
         menubar.add_cascade(label='Help', menu=helps)
         self.root.configure(menu=menubar)
@@ -418,6 +420,7 @@ class Window:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         bind(f'<{_MOD}-O>', lambda _e: self.open_image_dialog())     # with Shift
         bind(f'<{_MOD}-e>', lambda _e: self.export_dialog())
         bind(f'<{_MOD}-r>', lambda _e: self.report_add(False))
+        bind('<F1>', lambda _e: self.open_manual())
         bind(f'<{_MOD}-f>', lambda _e: self.focus_search())
         bind(f'<{_MOD}-l>', lambda _e: self.focus_address())
         bind(f'<{_MOD}-C>', lambda _e: self.copy_path())             # with Shift
@@ -1239,13 +1242,50 @@ class Window:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             'Python standard library only. MIT licence.\n\nhttps://github.com/abrignoni/regfprobe'),
             parent=self.root)
 
+    @staticmethod
+    def _docs(name):
+        return os.path.join(os.path.dirname(os.path.abspath(__file__)), 'docs', name)
+
+    def open_manual(self):
+        """Open docs/manual.html in the default browser."""
+        import pathlib  # pylint: disable=import-outside-toplevel
+        import webbrowser  # pylint: disable=import-outside-toplevel
+        path = self._docs('manual.html')
+        if not os.path.exists(path):
+            messagebox.showerror('regfprobe', f'The manual was not found at {path}. Keep the docs folder '
+                                 'beside regfprobe_gui.py.', parent=self.root)
+            return
+        webbrowser.open(pathlib.Path(path).as_uri())
+        self.set_status('Opened the manual in your browser.')
+
+    def save_manual_pdf(self):
+        """Copy docs/manual.pdf to a place the user chooses."""
+        import shutil  # pylint: disable=import-outside-toplevel
+        source = self._docs('manual.pdf')
+        if not os.path.exists(source):
+            messagebox.showerror('regfprobe', 'manual.pdf was not found in the docs folder. Open the manual '
+                                 '(Help > User Manual) and use its Save as PDF button instead.', parent=self.root)
+            return
+        target = filedialog.asksaveasfilename(title='Save the regfprobe manual as PDF', parent=self.root,
+                                              initialfile='regfprobe manual.pdf', defaultextension='.pdf',
+                                              filetypes=(('PDF', '*.pdf'),))
+        if not target:
+            return
+        try:
+            shutil.copyfile(source, target)
+        except OSError as error:
+            messagebox.showerror('regfprobe', f'Could not save the PDF: {error}', parent=self.root)
+            return
+        self.set_status(f'Saved the manual to {target}')
+
     def shortcuts_help(self):
         m = _MOD_LABEL
         messagebox.showinfo('Keyboard shortcuts', '\n'.join((
             f'{m}+O  open a hive file', f'{m}+Shift+O  open a hive inside a disk image',
             f'{m}+L  go to a key by path', f'{m}+F  find', f'{m}+C  copy the selected value\'s data',
             f'{m}+Shift+C  copy the key path', f'{m}+E  export the selected key',
-            f'{m}+1 to {m}+4  Values, Security, Search, Timeline', 'Esc  cancel a running task',
+            f'{m}+1 to {m}+4  Values, Security, Search, Timeline', 'F1  open the user manual',
+            'Esc  cancel a running task',
             'Arrows move in the tree; Return opens or closes a key; Tab moves between panes.')),
             parent=self.root)
 

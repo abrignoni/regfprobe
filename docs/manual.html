@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>regfprobe User Manual</title>
+<style>
+:root{--bg:#ffffff;--fg:#1d1f23;--muted:#5d636c;--line:#dde1e6;--panel:#f4f6f8;--accent:#1f5fbf;--code:#eef1f4;
+--ok:#2e7d32;--info:#1565c0;--warn:#ef6c00;--bad:#c62828}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#17181b;--fg:#e4e6ea;--muted:#a0a6ae;
+--line:#30333a;--panel:#202227;--accent:#6ea8ff;--code:#26292f}}
+:root[data-theme="dark"]{--bg:#17181b;--fg:#e4e6ea;--muted:#a0a6ae;--line:#30333a;--panel:#202227;--accent:#6ea8ff;--code:#26292f}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 "Segoe UI",system-ui,-apple-system,sans-serif}
+.layout{display:grid;grid-template-columns:260px minmax(0,1fr);max-width:1240px;margin:0 auto}
+nav.toc{position:sticky;top:0;align-self:start;height:100vh;overflow:auto;padding:28px 18px;border-right:1px solid var(--line);font-size:14px}
+nav.toc strong{display:block;margin-bottom:8px}
+nav.toc ol{padding-left:18px;margin:0}nav.toc li{margin:3px 0}
+nav.toc a{color:var(--fg);text-decoration:none}nav.toc a:hover{color:var(--accent)}
+main{padding:32px 40px 80px;min-width:0}
+h1{font-size:32px;margin:0 0 6px}
+h2{font-size:24px;margin:48px 0 12px;padding-top:12px;border-top:1px solid var(--line)}
+h3{font-size:18px;margin:28px 0 8px}
+p,li{max-width:76ch}
+a{color:var(--accent)}
+.lede{color:var(--muted);font-size:18px;margin:0 0 20px}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 8px}
+button{font:inherit;font-size:14px;padding:7px 14px;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--fg);cursor:pointer}
+button:hover{border-color:var(--accent)}
+code,kbd{font-family:Consolas,"Cascadia Mono",monospace;font-size:.88em;background:var(--code);padding:1px 5px;border-radius:4px}
+kbd{border:1px solid var(--line);border-bottom-width:2px}
+pre{background:var(--code);padding:12px 14px;border-radius:6px;overflow-x:auto;font-size:13.5px;line-height:1.45}
+pre code{background:none;padding:0}
+figure{margin:18px 0 26px}
+figure img{max-width:100%;height:auto;border:1px solid var(--line);border-radius:6px;display:block}
+figcaption{color:var(--muted);font-size:14px;margin-top:6px}
+table{border-collapse:collapse;width:100%;margin:12px 0 20px;font-size:15px}
+th,td{text-align:left;vertical-align:top;padding:7px 10px;border-bottom:1px solid var(--line)}
+th{background:var(--panel);font-weight:600}
+.note{background:var(--panel);border-left:4px solid var(--accent);padding:10px 14px;margin:14px 0;border-radius:0 6px 6px 0}
+.note.warn{border-left-color:var(--warn)}
+.swatch{display:inline-block;width:12px;height:12px;border-radius:2px;vertical-align:-1px;margin-right:6px}
+.steps li{margin:4px 0}
+@media (max-width:860px){.layout{grid-template-columns:1fr}nav.toc{position:static;height:auto;border-right:0;border-bottom:1px solid var(--line)}main{padding:20px 16px 60px}}
+@media print{
+  :root,:root[data-theme="dark"]{--bg:#fff;--fg:#000;--muted:#444;--line:#bbb;--panel:#f2f2f2;--accent:#0b4fa8;--code:#f2f2f2}
+  @page{size:A4;margin:16mm 14mm}
+  body{font-size:11pt}
+  .layout{display:block;max-width:none}
+  nav.toc{position:static;height:auto;border:0;padding:0 0 10px;page-break-after:always}
+  .actions{display:none}
+  main{padding:0}
+  h2{page-break-before:always;border-top:0;margin-top:0}
+  h2.first{page-break-before:avoid}
+  figure,table,pre,.note{page-break-inside:avoid}
+  pre{white-space:pre-wrap;word-break:break-all;overflow:visible}
+  a{color:inherit;text-decoration:none}
+}
+</style>
+</head>
+<body>
+<div class="layout">
+<nav class="toc" aria-label="Contents">
+<strong>Contents</strong>
+<ol>
+<li><a href="#about">What regfprobe is</a></li>
+<li><a href="#start">Getting started</a></li>
+<li><a href="#opening">Opening hives</a></li>
+<li><a href="#banner">How far to trust a hive</a></li>
+<li><a href="#window">The main window</a></li>
+<li><a href="#search">Search</a></li>
+<li><a href="#timeline">Timeline</a></li>
+<li><a href="#export">Copying and exporting</a></li>
+<li><a href="#reports">HTML reports</a></li>
+<li><a href="#interpreted">The Interpreted column</a></li>
+<li><a href="#profiles">Key profiles</a></li>
+<li><a href="#dark">Dark mode</a></li>
+<li><a href="#keys">Keyboard shortcuts</a></li>
+<li><a href="#cli">Command line</a></li>
+<li><a href="#tips">Tips and cautions</a></li>
+</ol>
+</nav>
+<main>
+<h1>regfprobe User Manual</h1>
+<p class="lede">Reading Windows registry hives offline, choosing keys, and reporting on them.</p>
+<div class="actions">
+<a href="manual.pdf" download="regfprobe manual.pdf"><button type="button">Download PDF (clickable contents)</button></a>
+<button type="button" onclick="window.print()">Print</button>
+</div>
+<p><strong>Download PDF</strong> gives the ready-made PDF, with a clickable contents page and bookmarks. If you print to PDF
+yourself, choose <strong>Save as PDF</strong> as the printer: <em>Microsoft Print to PDF</em> drops every link, so its contents page is not clickable. The
+printed copy uses a white page, starts each chapter on a new page, and hides these buttons. From inside regfprobe,
+<strong>Help &rarr; Save Manual as PDF...</strong> saves a ready-made PDF.</p>
+
+<h2 id="about" class="first">1. What regfprobe is</h2>
+<p>regfprobe reads Windows registry hive files (SAM, SYSTEM, SOFTWARE, SECURITY, NTUSER.DAT, UsrClass.dat, Amcache.hve
+and others) <strong>offline and read-only</strong>. It never writes to a hive, its logs, or the image it reads them
+from. It can open a loose hive file, or reach straight into an E01 or raw disk image and read the hive from there,
+along with its <code>.LOG1</code>/<code>.LOG2</code> transaction logs.</p>
+<p>It is written in plain Python with no packages to install. The same reading engine (<code>regfprobe.py</code>) runs
+the window, the command line, and every export, so the data you see on screen is the data that ends up in a report.</p>
+
+<h2 id="start">2. Getting started</h2>
+<h3>What you need</h3>
+<ul>
+<li>Python 3.10 or newer (from python.org on Windows; it includes Tkinter).</li>
+<li>These files together in one folder:
+<table>
+<tr><th>File</th><th>What it does</th></tr>
+<tr><td><code>regfprobe.py</code></td><td>The hive reader and command line</td></tr>
+<tr><td><code>regfprobe_gui.py</code></td><td>The window</td></tr>
+<tr><td><code>regfprobe_theme.py</code></td><td>Dark mode</td></tr>
+<tr><td><code>regfprobe_report.py</code>, <code>regfprobe_interpret.py</code></td><td>HTML reports and the Interpreted column</td></tr>
+<tr><td><code>regfprobe_profile.py</code></td><td>Key profiles</td></tr>
+<tr><td><code>qnxprobe.py</code>, <code>ewfprobe.py</code></td><td>Reading disk images (from the qnxprobe project). Only needed to open hives inside E01/raw images.</td></tr>
+<tr><td><code>docs/</code></td><td>This manual and its screenshots</td></tr>
+</table></li>
+</ul>
+<h3>Starting it</h3>
+<pre><code>python regfprobe_gui.py
+python regfprobe_gui.py "C:\exports\SYSTEM"
+python regfprobe_gui.py --image "D:\Cases\CASE-001.E01"
+python regfprobe_gui.py "C:\exports\SOFTWARE" --key "Microsoft\Windows NT\CurrentVersion"</code></pre>
+<p>With a hive or <code>--image</code>, the window opens straight to it; <code>--key</code> jumps to a key once the hive is open.</p>
+
+<h2 id="opening">3. Opening hives</h2>
+<h3>A hive file</h3>
+<p><strong>File &rarr; Open Hive...</strong> (<kbd>Ctrl</kbd>+<kbd>O</kbd>) opens a hive you have already exported.
+Its <code>.LOG1</code> and <code>.LOG2</code> are picked up automatically when they sit beside it.</p>
+<h3>A hive inside a disk image</h3>
+<p><strong>File &rarr; Open Hive from Disk Image...</strong> (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>O</kbd>) asks for an
+E01 or raw image, searches every volume in it for files named like hives, and lists them. Choose one and press
+<strong>Open</strong> (or double-click it). The hive is read straight from the image into memory; nothing is extracted to disk.</p>
+<figure><img src="img/hive-picker.png" alt="The hive picker listing SAM, SECURITY, SOFTWARE, SYSTEM, NTUSER.DAT and UsrClass.dat found in an image">
+<figcaption>The hive picker: volume, path inside the volume, and size of each hive found in the image.</figcaption></figure>
+<h3>Transaction logs</h3>
+<p>Windows writes registry changes to the <code>.LOG1</code>/<code>.LOG2</code> files first and folds them into the hive
+later, so a hive taken from a running or crashed machine is often "dirty". By default regfprobe replays the logs in
+memory, so you see the registry as Windows last saw it. To see the hive exactly as stored on disk instead, untick
+<strong>File &rarr; Replay Transaction Logs When Opening</strong> before opening it.</p>
+
+<h2 id="banner">4. How far to trust a hive</h2>
+<p>The coloured banner under the address bar says what state the hive was in and what regfprobe did about it:</p>
+<table>
+<tr><th>Banner</th><th>Meaning</th></tr>
+<tr><td><span class="swatch" style="background:var(--ok)"></span>Clean hive</td><td>Stored cleanly; read as it is.</td></tr>
+<tr><td><span class="swatch" style="background:var(--info)"></span>Dirty hive: transaction logs replayed in memory</td><td>The logs held newer data and it was applied. The banner says how many pages were replayed.</td></tr>
+<tr><td><span class="swatch" style="background:var(--warn)"></span>Dirty hive read as it is / Read without replaying</td><td>The hive is behind its logs and they were not applied (missing, or replay turned off).</td></tr>
+<tr><td><span class="swatch" style="background:var(--bad)"></span>Damaged structures were skipped</td><td>Some cells could not be read. Everything readable is shown; the banner counts what was skipped.</td></tr>
+</table>
+<p>The same banner is copied into every HTML report, per hive.</p>
+
+<h2 id="window">5. The main window</h2>
+<figure><img src="img/main-window.png" alt="regfprobe main window showing a SAM account key, its values and a hex dump">
+<figcaption>A SAM account key: the key tree on the left, the key's details and values on the right, the selected value's bytes below.</figcaption></figure>
+<ul>
+<li><strong>Key</strong> (address bar): type or paste a key path and press <kbd>Enter</kbd> to jump to it (<kbd>Ctrl</kbd>+<kbd>L</kbd> focuses it).</li>
+<li><strong>Key tree</strong>: expand with the arrows or <kbd>Enter</kbd>. Right-click a key to copy its path or name, export it, or add it to a report.</li>
+<li><strong>Key details</strong>: last-written time (UTC and raw FILETIME), subkey/value counts, class name, cell offset and flags.</li>
+<li><strong>Values</strong> tab: name, type, size, decoded data and notes. Click a column heading to sort. Select a value to see its decoded data and a hex dump in the lower pane.</li>
+<li><strong>Security</strong> tab: the key's security descriptor (owner, group, permissions).</li>
+<li><strong>Search</strong> and <strong>Timeline</strong> tabs: below.</li>
+</ul>
+<p>The <strong>Notes</strong> column flags anything unusual about how a value is stored (for example a string with no terminator, or data shorter than its stated size).</p>
+
+<h2 id="search">6. Search</h2>
+<p>The <strong>Search</strong> tab (<kbd>Ctrl</kbd>+<kbd>F</kbd>) looks through the whole hive. Type the text, choose what to
+search (<em>names and data</em>, <em>names</em> only, or <em>data</em> only), and press <strong>Search</strong> or
+<kbd>Enter</kbd>. Double-click a result, or press <kbd>Enter</kbd>, to jump to that key.</p>
+<figure><img src="img/search.png" alt="Search tab with two results for jdoe">
+<figcaption>Searching for <code>jdoe</code>: one match in a key name and one inside a value's data.</figcaption></figure>
+
+<h3>Long tasks</h3>
+<p>Opening a large image, searching and building the timeline run in the background; the status bar shows progress.
+Press <kbd>Esc</kbd> to cancel.</p>
+
+<h2 id="timeline">7. Timeline</h2>
+<p>The <strong>Timeline</strong> tab lists every key by its last-written time, newest first. Fill in <strong>From</strong>
+and/or <strong>To</strong> (UTC, <code>YYYY-MM-DD</code> or <code>YYYY-MM-DD HH:MM:SS</code>) to narrow it, and press
+<strong>Build</strong>. Long timelines are shown a page at a time. Double-click a row to open that key.
+<strong>File &rarr; Save Timeline as CSV...</strong> writes the whole timeline to a spreadsheet-friendly file.</p>
+<figure><img src="img/timeline.png" alt="Timeline tab listing keys by last written time">
+<figcaption>Every key by last-written time, newest first.</figcaption></figure>
+<div class="note">A key's last-written time changes when the key or any of its values changes. It does not tell you
+<em>which</em> value changed, and it does not change when a subkey's values change.</div>
+
+<h2 id="export">8. Copying and exporting</h2>
+<table>
+<tr><th>To get</th><th>Use</th></tr>
+<tr><td>A key's path or name</td><td><strong>Edit &rarr; Copy Key Path</strong> (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd>), or right-click the key</td></tr>
+<tr><td>A value's data, name or bytes</td><td><strong>Edit &rarr; Copy Value Data</strong> (<kbd>Ctrl</kbd>+<kbd>C</kbd>), Copy Value Name, Copy Value Bytes as Hex, or right-click the value</td></tr>
+<tr><td>A key and everything under it as data</td><td><strong>File &rarr; Export Selected Key...</strong> (<kbd>Ctrl</kbd>+<kbd>E</kbd>): JSON, CSV or a <code>.reg</code> file. Pick the format by the file extension.</td></tr>
+<tr><td>Every key's last-written time</td><td><strong>File &rarr; Save Timeline as CSV...</strong></td></tr>
+<tr><td>A readable report of chosen keys</td><td>The HTML report, next section</td></tr>
+</table>
+
+<h2 id="reports">9. HTML reports</h2>
+<p>An HTML report collects the keys you choose, from one hive or many, into a single file that opens in any browser,
+prints cleanly, and needs nothing else to view: pictures and styles are inside the file.</p>
+<h3>Choosing keys</h3>
+<ol class="steps">
+<li>Select a key in the tree.</li>
+<li><strong>Report &rarr; Add Selected Key</strong> (<kbd>Ctrl</kbd>+<kbd>R</kbd>) adds just that key;
+<strong>Report &rarr; Add Selected Key and Subkeys</strong> adds it and everything under it. Both are also on the tree's right-click menu.</li>
+<li>Open another hive, from the same image or a different one, and keep adding. The list is kept when you switch hives; the status bar counts selections and hives.</li>
+</ol>
+<h3>Reviewing the list</h3>
+<p><strong>Report &rarr; Keys in Report...</strong> shows each selection with the hive and image it came from.</p>
+<figure><img src="img/keys-in-report.png" alt="Keys in Report window listing four selections from two images">
+<figcaption>Selections from two images. <code>[+ subkeys]</code> marks a key added with everything under it.</figcaption></figure>
+<ul>
+<li><strong>Go to Key</strong> (or double-click) switches to that hive and selects the key.</li>
+<li><strong>Remove</strong> (or <kbd>Delete</kbd>) drops the selected lines; <strong>Clear All</strong> empties the list.</li>
+<li><strong>Export HTML Report...</strong> goes straight to exporting.</li>
+</ul>
+<h3>Exporting</h3>
+<p><strong>Report &rarr; Export HTML Report...</strong> (also on the File menu) first asks which optional columns to include,
+then where to save the file. Your choice is remembered for next time.</p>
+<figure><img src="img/report-columns.png" alt="Dialog with two checkboxes for optional report columns">
+<figcaption>Name, Type, Size and Interpreted are always included.</figcaption></figure>
+<table>
+<tr><th>Column</th><th>Shows</th><th>Include it when</th></tr>
+<tr><td>Interpreted</td><td>The readable form: decoded SAM fields and pictures (next section). For strings and numbers, regfprobe's own decoding. Other binary values: their hex, or a dash when the regfprobe data column is included.</td><td>Always included</td></tr>
+<tr><td>regfprobe data</td><td>The value as regfprobe's Values tab shows it. For binary values that is hex, so it repeats the raw column.</td><td>You want the report to match the window exactly</td></tr>
+<tr><td>Raw bytes (hex)</td><td>The bytes exactly as stored (first 4 KB per value)</td><td>The report must let a reader check the decoding</td></tr>
+</table>
+<h3>What the report contains</h3>
+<ul>
+<li>A title naming the hives, the time it was made, and the regfprobe version.</li>
+<li>An index: what you selected and links to every key, grouped by hive.</li>
+<li>Per hive: its full source (image, volume and path) and its trust banner.</li>
+<li>Per key: path, last-written time (UTC and FILETIME), value count and cell offset, then a table of its values.</li>
+</ul>
+<figure><img src="img/html-report.png" alt="An HTML report showing a SAM account with decoded logon times, user name and picture">
+<figcaption>A report on one account and the Administrators group, without the optional columns. It follows the reader's light or dark setting.</figcaption></figure>
+
+<h2 id="interpreted">10. The Interpreted column</h2>
+<p>Many important registry values are binary structures that regfprobe's Values tab can only show as hex. The
+Interpreted column in reports decodes the ones below, using only layouts with a published source (the sources are
+listed at the top of <code>regfprobe_interpret.py</code>). Nothing is guessed from a value's name or from what its
+bytes look like. Any other value keeps regfprobe's own decoding (for binary data, its hex), shown here when the
+regfprobe data column is left out and as a dash when that column is included.</p>
+<table>
+<tr><th>Where</th><th>Value</th><th>Decoded into</th></tr>
+<tr><td>SAM <code>Domains\Account\Users\&lt;RID&gt;</code></td><td><code>F</code></td><td>Last logon, password last set, account expiry, last failed logon, RID, account flags (disabled, password not required, password never expires...), failed and total logon counts</td></tr>
+<tr><td>SAM <code>Domains\Account\Users\&lt;RID&gt;</code></td><td><code>V</code></td><td>User name, full name, comment, user comment, home directory and drive, logon script, profile path, allowed workstations; the size of the LM and NT hash entries (never the hashes themselves)</td></tr>
+<tr><td>SAM <code>Users\Names\&lt;name&gt;</code></td><td>(default)</td><td>The account's RID. Windows stores it as the value's <em>type</em>, which is why the Values tab shows "unknown type 0x3e9".</td></tr>
+<tr><td>SAM <code>Builtin\Aliases\&lt;RID&gt;</code></td><td><code>C</code></td><td>Group name, description and member SIDs</td></tr>
+<tr><td>SAM <code>Domains\Account\Users\&lt;RID&gt;</code></td><td><code>UserTile</code></td><td>The account picture, found after the value's header and shown in the report</td></tr>
+<tr><td>Anywhere, binary values</td><td>Data that starts with a valid PNG, JPEG or BMP header</td><td>The picture itself</td></tr>
+</table>
+<div class="note warn"><strong>Read SAM logon data with care.</strong> Sign-ins with a Microsoft account, PIN or Windows Hello often do not
+update the SAM's last logon or logon count. "Never" or 0 there does not prove the account was never used; check it against the event logs.</div>
+
+<h2 id="profiles">11. Key profiles</h2>
+<p>A profile is a saved list of keys you look at on most cases. Save it once, then pull all of those keys from any
+new image in one step, ready to report on.</p>
+<h3>Saving a profile</h3>
+<ol class="steps">
+<li>Add your usual keys to the report list (section 9), from any hives.</li>
+<li><strong>Report &rarr; Save Selections as Profile...</strong> and choose a name, e.g. <code>System Information.json</code>.</li>
+</ol>
+<h3>Using a profile on a new case</h3>
+<ol class="steps">
+<li><strong>Report &rarr; Load Profile from Disk Image...</strong></li>
+<li>Choose the profile, then the E01 or raw image.</li>
+<li>regfprobe searches the image once, reads each hive the profile needs (with its logs), and adds every key to the report list.</li>
+<li>A message lists anything the profile asked for that this image does not have; the Keys in Report window then opens so you can review and export.</li>
+</ol>
+<p>Loading is additive: load several profiles in a row, or add more keys by hand before exporting.</p>
+<h3>Profiles fit any machine</h3>
+<p>A profile records <em>where</em> a key lives, not which case it came from. Parts that change from machine to machine
+are saved as patterns and filled in when the profile is loaded:</p>
+<table>
+<tr><th>You picked</th><th>The profile saves</th><th>On a new image, that means</th></tr>
+<tr><td><code>Users/jdoe/NTUSER.DAT</code></td><td><code>Users/*/NTUSER.DAT</code></td><td>That hive for <strong>every</strong> user (UsrClass.dat likewise). The Default profile's hive is checked too.</td></tr>
+<tr><td>SAM <code>Users\000003E9</code></td><td>SAM <code>Users\*</code></td><td>Every account's key</td></tr>
+<tr><td>SAM <code>Users\Names\jdoe</code></td><td>SAM <code>Users\Names\*</code></td><td>Every account name</td></tr>
+<tr><td>SYSTEM <code>ControlSet001\...</code></td><td>SYSTEM <code>CurrentControlSet\...</code></td><td>The control set <code>Select\Current</code> names on that machine</td></tr>
+</table>
+<p>Profiles saved before these patterns existed are upgraded the same way when loaded.</p>
+<h3>The profile file</h3>
+<p>A profile is a small, readable JSON file. You can share it with colleagues or edit it by hand; <code>*</code>
+stands for any one folder (in hive paths) or any one subkey (in key paths).</p>
+<pre><code>{
+  "regfprobe_profile": 1,
+  "name": "System Information",
+  "entries": [
+    {"hive": "Windows/System32/config/SOFTWARE", "key": "Microsoft\\Windows NT\\CurrentVersion", "subkeys": false},
+    {"hive": "Windows/System32/config/SYSTEM", "key": "CurrentControlSet\\Control\\TimeZoneInformation", "subkeys": false},
+    {"hive": "Windows/System32/config/SAM", "key": "SAM\\Domains\\Account\\Users\\*", "subkeys": false},
+    {"hive": "Users/*/NTUSER.DAT", "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\RecentDocs", "subkeys": false}
+  ]
+}</code></pre>
+<p>A hive opened as a loose file is saved under its usual place in an image when its name is a standard one (SAM,
+SYSTEM, SOFTWARE, SECURITY, DEFAULT, NTUSER.DAT, UsrClass.dat, Amcache.hve); others are left out, and saving says so.</p>
+<div class="note">Each hive a report uses stays in memory until regfprobe closes. That is small for SAM, SYSTEM and user
+hives; a large SOFTWARE hive can take a few hundred MB.</div>
+
+<h2 id="dark">12. Dark mode</h2>
+<p><strong>View &rarr; Dark Mode</strong> switches the whole window, dialogs and title bars to dark colours, and is
+remembered for next time. Every screenshot in this manual was taken in dark mode. The menu bar along the top stays
+light because Windows draws it. HTML reports and this manual follow your browser's or system's own light/dark setting.</p>
+
+<h2 id="keys">13. Keyboard shortcuts</h2>
+<table>
+<tr><th>Keys</th><th>Action</th></tr>
+<tr><td><kbd>Ctrl</kbd>+<kbd>O</kbd></td><td>Open a hive file</td></tr>
+<tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>O</kbd></td><td>Open a hive inside a disk image</td></tr>
+<tr><td><kbd>Ctrl</kbd>+<kbd>L</kbd></td><td>Go to a key by path</td></tr>
+<tr><td><kbd>Ctrl</kbd>+<kbd>F</kbd></td><td>Search</td></tr>
+<tr><td><kbd>Ctrl</kbd>+<kbd>C</kbd></td><td>Copy the selected value's data</td></tr>
+<tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd></td><td>Copy the key path</td></tr>
+<tr><td><kbd>Ctrl</kbd>+<kbd>E</kbd></td><td>Export the selected key (JSON, CSV, .reg)</td></tr>
+<tr><td><kbd>Ctrl</kbd>+<kbd>R</kbd></td><td>Add the selected key to the report</td></tr>
+<tr><td><kbd>Ctrl</kbd>+<kbd>1</kbd> &hellip; <kbd>Ctrl</kbd>+<kbd>4</kbd></td><td>Values, Security, Search, Timeline tabs</td></tr>
+<tr><td><kbd>F1</kbd></td><td>Open this manual</td></tr>
+<tr><td><kbd>Esc</kbd></td><td>Cancel a running task</td></tr>
+<tr><td>Arrows, <kbd>Enter</kbd>, <kbd>Tab</kbd></td><td>Move in the tree, open or close a key, move between panes</td></tr>
+</table>
+
+<h2 id="cli">14. Command line</h2>
+<p><code>regfprobe.py</code> also works without the window, which suits scripts and batch work. Each command has its own
+<code>--help</code>.</p>
+<table>
+<tr><th>Command</th><th>Does</th></tr>
+<tr><td><code>info</code></td><td>Base block, recovery state and counts</td></tr>
+<tr><td><code>ls</code></td><td>Subkeys and values of a key</td></tr>
+<tr><td><code>cat</code></td><td>Decoded data and hex of a key's values</td></tr>
+<tr><td><code>find</code></td><td>Search key names, value names and data</td></tr>
+<tr><td><code>timeline</code></td><td>Every key by last-written time, as CSV</td></tr>
+<tr><td><code>export</code></td><td>Keys and values as JSON, CSV or .reg</td></tr>
+<tr><td><code>logs</code></td><td>What the transaction logs hold and what replay changes</td></tr>
+<tr><td><code>hives</code></td><td>List files named like hives inside a disk image</td></tr>
+</table>
+<pre><code>python regfprobe.py info SYSTEM
+python regfprobe.py ls SOFTWARE "Microsoft\Windows NT\CurrentVersion"
+python regfprobe.py export SYSTEM "ControlSet001\Services" --format csv --out services.csv
+python regfprobe.py hives "D:\Cases\CASE-001.E01"</code></pre>
+
+<h2 id="tips">15. Tips and cautions</h2>
+<ul>
+<li><strong>Read-only.</strong> regfprobe never changes evidence. Transaction-log replay happens in memory only.</li>
+<li><strong>Times are UTC.</strong> Convert them yourself using the machine's time zone (SYSTEM <code>CurrentControlSet\Control\TimeZoneInformation</code>), which is a good key to keep in a profile.</li>
+<li><strong>Dirty hives.</strong> If the banner is orange, compare with replay on and off: the difference is what the logs held.</li>
+<li><strong>Interpreted fields are an aid.</strong> Reports keep the raw bytes available (optional column) so any decoding can be checked.</li>
+<li><strong>Not found is not absence.</strong> When a profile reports a key missing, the key may simply be named differently on that Windows version.</li>
+</ul>
+<p style="color:var(--muted);font-size:14px;margin-top:40px">Screenshots use a made-up demo hive (<code>docs/demo/SAM</code>, fictional accounts).
+To retake them after a change: <code>python docs/make_demo_hive.py</code> then <code>python docs/make_screenshots.py</code>.
+To rebuild the PDF: <code>python docs/make_pdf.py</code>.</p>
+</main>
+</div>
+</body>
+</html>
