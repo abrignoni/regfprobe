@@ -26,7 +26,7 @@ white-space:pre-wrap;font-size:13px}
 .banner.warn{border-color:var(--warn)}.banner.bad{border-color:var(--bad)}.banner.info{border-color:var(--info)}
 nav{margin:0 0 24px}nav h3{font-size:14px;margin:14px 0 4px}nav .count{color:var(--muted);font-weight:400}
 .hive{margin:0 0 32px}.hivehead{font-size:18px;margin:28px 0 10px;padding-bottom:6px;border-bottom:2px solid var(--line)}
-nav ol{margin:6px 0 0;padding-left:22px}nav a{color:var(--accent);word-break:break-all}
+nav ol{margin:6px 0 0;padding-left:22px}nav .origin{color:var(--muted);font-size:12.5px}nav a{color:var(--accent);word-break:break-all}
 section{border:1px solid var(--line);border-radius:6px;margin:0 0 18px;overflow:hidden}
 section header{background:var(--head);padding:10px 14px;border-bottom:1px solid var(--line)}
 section header p{margin:4px 0 0;color:var(--muted);font-size:12.5px}
@@ -111,7 +111,7 @@ def hive_label(hive):
 
 def _keys(hive, entries):
     keys, seen = [], set()
-    for path, deep in entries:
+    for path, deep, *_origin in entries:
         start = hive.open_key(path)
         for key in (hive.walk(start) if deep else [start]):
             if key.offset not in seen:
@@ -130,6 +130,10 @@ def write_report(hive, entries, stream, title='regfprobe report', banner=('ok', 
 def write_multi_report(groups, stream, title='regfprobe report', examiner='', show_data=True, show_raw=True):
     """groups: list of (hive, banner, entries), one per hive, in the order they should appear.
 
+    entries are (key path, include subkeys) or (key path, include subkeys, origin); origin, when
+    not empty, is shown beside the selection (a key pulled through a key profile names the
+    profile entry it came from).
+
     With one hive the page looks as it did before; with several, each hive gets its own heading,
     trust banner and contents list.
     """
@@ -141,7 +145,9 @@ def write_multi_report(groups, stream, title='regfprobe report', examiner='', sh
     for g, (hive, (level, banner_title, banner_text), entries, keys) in enumerate(built):
         label = hive_label(hive)
         toc = ''.join(f'<li><a href="#h{g}k{i}">{_e(k.path or "(root)")}</a></li>' for i, k in enumerate(keys))
-        chosen = ''.join(f'<li>{_e(p or "(root)")}{" and subkeys" if d else ""}</li>' for p, d in entries)
+        chosen = ''.join(f'<li>{_e(p or "(root)")}{" and subkeys" if d else ""}'
+                         + (f' <span class="origin">({_e(o[0])})</span>' if o and o[0] else '') + '</li>'
+                         for p, d, *o in entries)
         nav.append((f'<h3><a href="#h{g}">{_e(label)}</a> <span class="count">{len(keys)} key(s)</span></h3>'
                     if many else '')
                    + f'<strong>Selected</strong><ul>{chosen}</ul><strong>Keys in this report</strong><ol>{toc}</ol>')

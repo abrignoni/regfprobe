@@ -68,6 +68,16 @@ class ReportTest(unittest.TestCase):
         self.assertIn('banner warn', text)
         self.assertEqual(len(set(re.findall(r'<section id="([^"]+)"', text))), count)   # anchors unique
 
+    def test_selection_shows_the_profile_entry_it_came_from(self):
+        origin = r'profile entry CurrentControlSet\X; CurrentControlSet is ControlSet001, from Select\Current <b>'
+        stream = io.StringIO()
+        regfprobe_report.write_multi_report([(self.hive, ('ok', '', ''), [('Software', False, origin),
+                                                                         ('Values', False, '')])], stream)
+        chosen = re.findall(r'<li>(.*?)</li>', stream.getvalue().split('<strong>Keys in this report')[0])
+        self.assertEqual(chosen, ['Software <span class="origin">(profile entry CurrentControlSet\\X; '
+                                  'CurrentControlSet is ControlSet001, from Select\\Current &lt;b&gt;)</span>',
+                                  'Values'])
+
     def test_text_is_escaped(self):
         _count, text = _report(self.hive, [('', True)], title='<b>x</b>')
         self.assertIn('&lt;b&gt;x&lt;/b&gt;', text)

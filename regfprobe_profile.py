@@ -165,7 +165,8 @@ def load(path):
 def pull(image, entries, recover=True, password=None, cancel=None):
     """Read every hive the profile names from the image and check its keys.
 
-    Returns (found, missing, resolved): found is [(hive, [(key path, subkeys)])] in profile order,
+    Returns (found, missing, resolved): found is [(hive, [(key path, subkeys, origin)])] in profile
+    order (origin is '' when the key is the profile's own path, else the profile entry it came from),
     one item per hive file (so one per user for a Users/* pattern); missing is [str] describing
     what the profile asked for and the image does not have; resolved is [str] naming the control
     set CurrentControlSet stood for in each hive, as Select\\Current gives it.
@@ -220,6 +221,7 @@ def pull(image, entries, recover=True, password=None, cancel=None):
             for p, key_path, deep in entries:
                 if p != pattern:
                     continue
+                current = None
                 if key_path.upper().split('\\', 1)[0] == 'CURRENTCONTROLSET':
                     current = current_control_set(hive)
                     note = (f'{hive.path.split("::")[-1]}: CurrentControlSet is {current}, from Select\\Current'
@@ -234,7 +236,14 @@ def pull(image, entries, recover=True, password=None, cancel=None):
                 if not paths:
                     missing.append(f'{hive.path.split("::")[-1]}: no key {key_path or "(root)"}')
                     continue
-                keys.extend((path, deep) for path in paths if (path, deep) not in keys)
+                for path in paths:
+                    if any(k[0] == path and k[1] == deep for k in keys):
+                        continue
+                    origin = ''
+                    if path.upper() != key_path.upper():
+                        origin = f'profile entry {key_path}' + (
+                            f'; CurrentControlSet is {current}, from Select\\Current' if current else '')
+                    keys.append((path, deep, origin))
             if keys:
                 found.append((hive, keys))
     return found, missing, resolved
