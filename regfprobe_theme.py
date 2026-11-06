@@ -72,6 +72,15 @@ class Theme:
             style.configure('TButton', background=c['button'], padding=(10, 3))
             style.map('TButton', background=[('pressed', c['select']), ('active', c['hover'])])
             style.configure('TEntry', fieldbackground=c['field'], foreground=c['fg'])
+            style.configure('TCombobox', fieldbackground=c['field'], foreground=c['fg'], background=c['button'],
+                            arrowcolor=c['fg'], selectbackground=c['field'], selectforeground=c['fg'])
+            style.map('TCombobox', fieldbackground=[('readonly', c['field'])], foreground=[('readonly', c['fg'])],
+                      background=[('active', c['hover']), ('readonly', c['button'])],
+                      selectbackground=[('readonly', c['field'])], selectforeground=[('readonly', c['fg'])])
+            root.option_add('*TCombobox*Listbox.background', c['field'])
+            root.option_add('*TCombobox*Listbox.foreground', c['fg'])
+            root.option_add('*TCombobox*Listbox.selectBackground', c['select'])
+            root.option_add('*TCombobox*Listbox.selectForeground', c['select_fg'])
             style.configure('TCheckbutton', background=c['bg'], indicatorbackground=c['field'],
                             indicatorforeground=c['select_fg'], upperbordercolor=c['muted'],
                             lowerbordercolor=c['muted'])
