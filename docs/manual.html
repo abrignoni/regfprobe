@@ -5,64 +5,81 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>regfprobe User Manual</title>
 <style>
-:root{--bg:#ffffff;--fg:#1d1f23;--muted:#5d636c;--line:#dde1e6;--panel:#f4f6f8;--accent:#1f5fbf;--code:#eef1f4;
+:root{--fg:#1a1a1a;--muted:#6b6b6b;--line:#dfdfdf;--gold:#bc8d19;--gold-soft:#e5d2a6;--panel:#f4f2ed;
 --ok:#2e7d32;--info:#1565c0;--warn:#ef6c00;--bad:#c62828}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#17181b;--fg:#e4e6ea;--muted:#a0a6ae;
---line:#30333a;--panel:#202227;--accent:#6ea8ff;--code:#26292f}}
-:root[data-theme="dark"]{--bg:#17181b;--fg:#e4e6ea;--muted:#a0a6ae;--line:#30333a;--panel:#202227;--accent:#6ea8ff;--code:#26292f}
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
-body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 "Segoe UI",system-ui,-apple-system,sans-serif}
-.layout{display:grid;grid-template-columns:260px minmax(0,1fr);max-width:1240px;margin:0 auto}
-nav.toc{position:sticky;top:0;align-self:start;height:100vh;overflow:auto;padding:28px 18px;border-right:1px solid var(--line);font-size:14px}
-nav.toc strong{display:block;margin-bottom:8px}
-nav.toc ol{padding-left:18px;margin:0}nav.toc li{margin:3px 0}
-nav.toc a{color:var(--fg);text-decoration:none}nav.toc a:hover{color:var(--accent)}
-main{padding:32px 40px 80px;min-width:0}
-h1{font-size:32px;margin:0 0 6px}
-h2{font-size:24px;margin:48px 0 12px;padding-top:12px;border-top:1px solid var(--line)}
-h3{font-size:18px;margin:28px 0 8px}
-p,li{max-width:76ch}
-a{color:var(--accent)}
-.lede{color:var(--muted);font-size:18px;margin:0 0 20px}
-.actions{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 8px}
-button{font:inherit;font-size:14px;padding:7px 14px;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--fg);cursor:pointer}
-button:hover{border-color:var(--accent)}
-code,kbd{font-family:Consolas,"Cascadia Mono",monospace;font-size:.88em;background:var(--code);padding:1px 5px;border-radius:4px}
-kbd{border:1px solid var(--line);border-bottom-width:2px}
-pre{background:var(--code);padding:12px 14px;border-radius:6px;overflow-x:auto;font-size:13.5px;line-height:1.45}
-pre code{background:none;padding:0}
-figure{margin:18px 0 26px}
-figure img{max-width:100%;height:auto;border:1px solid var(--line);border-radius:6px;display:block}
-figcaption{color:var(--muted);font-size:14px;margin-top:6px}
-table{border-collapse:collapse;width:100%;margin:12px 0 20px;font-size:15px}
-th,td{text-align:left;vertical-align:top;padding:7px 10px;border-bottom:1px solid var(--line)}
-th{background:var(--panel);font-weight:600}
-.note{background:var(--panel);border-left:4px solid var(--accent);padding:10px 14px;margin:14px 0;border-radius:0 6px 6px 0}
-.note.warn{border-left-color:var(--warn)}
+body{margin:0;background:#fff;color:var(--fg);font:15px/1.55 Helvetica,Arial,"Liberation Sans",sans-serif}
+.page{max-width:780px;margin:0 auto;padding:40px 24px 80px}
+a{color:var(--gold);text-decoration:none}a:hover{text-decoration:underline}
+.cover{padding:60px 0 28px}
+.eyebrow{color:var(--gold);font-weight:700;font-size:15px;letter-spacing:.02em;margin:0 0 22px}
+h1{font-size:34px;line-height:1.2;margin:0 0 18px;padding-bottom:18px;border-bottom:1.5px solid var(--gold)}
+.lede{color:var(--muted);font-size:17px;line-height:1.5;margin:0 0 28px}
+.byline{color:var(--muted);font-size:14.5px;line-height:1.45;margin:0 0 30px}
+.live{color:var(--muted);font-size:14.5px}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin:26px 0 8px}
+button{font:inherit;font-size:14px;padding:7px 14px;border-radius:4px;border:1px solid var(--gold);background:#fff;color:var(--fg);cursor:pointer}
+button:hover{background:var(--panel)}
+nav.toc{margin:30px 0 10px}
+nav.toc h2{margin-top:0}
+nav.toc ol{padding-left:22px;margin:0}nav.toc li{margin:4px 0}
+nav.toc a{color:var(--fg)}nav.toc a:hover{color:var(--gold)}
+h2{font-size:24px;line-height:1.25;margin:40px 0 14px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+h3{color:var(--gold);font-size:18px;margin:28px 0 10px}
+p,li{margin:0 0 11px}
+ul,ol{padding-left:24px}li{margin:4px 0}
+code,kbd{font-family:"Courier New",Courier,monospace;font-size:.9em;color:#3a3a3a}
+kbd{border:1px solid var(--line);border-bottom-width:2px;border-radius:3px;padding:0 4px}
+pre{font-family:"Courier New",Courier,monospace;font-size:13px;line-height:1.4;margin:10px 0 14px;white-space:pre-wrap;word-break:break-word}
+pre code{font-size:inherit}
+figure{margin:16px 0 22px}
+figure img{max-width:100%;height:auto;border:1px solid var(--line);display:block}
+figcaption{color:var(--muted);font-size:13.5px;margin-top:6px}
+table{border-collapse:collapse;width:100%;margin:12px 0 18px;font-size:14px}
+th,td{text-align:left;vertical-align:top;padding:7px 9px;border-bottom:1px solid var(--line)}
+th{background:var(--panel);font-weight:700}
+.note{background:var(--panel);padding:12px 16px;margin:14px 0}
+.note.warn{box-shadow:inset 3px 0 0 var(--gold)}
 .swatch{display:inline-block;width:12px;height:12px;border-radius:2px;vertical-align:-1px;margin-right:6px}
 .steps li{margin:4px 0}
-@media (max-width:860px){.layout{grid-template-columns:1fr}nav.toc{position:static;height:auto;border-right:0;border-bottom:1px solid var(--line)}main{padding:20px 16px 60px}}
+.colophon{color:var(--muted);font-size:13.5px;margin-top:40px}
+@media (max-width:600px){.page{padding:20px 16px 60px}h1{font-size:27px}}
+@page{size:letter;margin:0.75in 0.8in 0.8in;
+  @bottom-left{content:"LEAPPs Field Guide - regfprobe";font:8pt Helvetica,Arial,sans-serif;color:#555}
+  @bottom-right{content:"Page " counter(page);font:8pt Helvetica,Arial,sans-serif;color:#555}}
 @media print{
-  :root,:root[data-theme="dark"]{--bg:#fff;--fg:#000;--muted:#444;--line:#bbb;--panel:#f2f2f2;--accent:#0b4fa8;--code:#f2f2f2}
-  @page{size:A4;margin:16mm 14mm}
-  body{font-size:11pt}
-  .layout{display:block;max-width:none}
-  nav.toc{position:static;height:auto;border:0;padding:0 0 10px;page-break-after:always}
-  .actions{display:none}
-  main{padding:0}
-  h2{page-break-before:always;border-top:0;margin-top:0}
-  h2.first{page-break-before:avoid}
-  figure,table,pre,.note{page-break-inside:avoid}
-  pre{white-space:pre-wrap;word-break:break-all;overflow:visible}
-  a{color:inherit;text-decoration:none}
+  body{font-size:10.5pt}
+  .page{max-width:none;padding:0}
+  .cover{min-height:8.3in;padding-top:2.1in;break-after:page}
+  .actions,.print-hint{display:none}
+  nav.toc{break-after:page;margin:0}
+  h2{break-after:avoid}h3{break-after:avoid}
+  figure,table,pre,.note{break-inside:avoid}
+  a{color:var(--gold)}
 }
 </style>
 </head>
 <body>
-<div class="layout">
+<div class="page">
+<header class="cover">
+<p class="eyebrow">LEAPPs FIELD GUIDE</p>
+<h1>regfprobe User Manual</h1>
+<p class="lede">Reading Windows registry hives offline, choosing keys, and reporting on them: hives and disk images,
+search and timeline, HTML reports from one or many hives, and key profiles you can pull from any E01.</p>
+<p class="byline">regfprobe 0.2.1<br>Updated November 6, 2026</p>
+<p class="live">Source and latest version: <a href="https://github.com/abrignoni/regfprobe">github.com/abrignoni/regfprobe</a></p>
+<div class="actions">
+<a href="manual.pdf" download="regfprobe manual.pdf"><button type="button">Download PDF (clickable contents)</button></a>
+<button type="button" onclick="window.print()">Print</button>
+</div>
+<p class="print-hint" style="color:var(--muted);font-size:14px"><strong>Download PDF</strong> gives the ready-made PDF, with a
+clickable contents page and bookmarks. If you print to PDF yourself, choose <strong>Save as PDF</strong> as the printer:
+<em>Microsoft Print to PDF</em> drops every link, so its contents page is not clickable. From inside regfprobe,
+<strong>Help &rarr; Save Manual as PDF...</strong> saves the ready-made PDF.</p>
+</header>
 <nav class="toc" aria-label="Contents">
-<strong>Contents</strong>
+<h2>Contents</h2>
 <ol>
 <li><a href="#about">What regfprobe is</a></li>
 <li><a href="#start">Getting started</a></li>
@@ -82,18 +99,7 @@ th{background:var(--panel);font-weight:600}
 </ol>
 </nav>
 <main>
-<h1>regfprobe User Manual</h1>
-<p class="lede">Reading Windows registry hives offline, choosing keys, and reporting on them.</p>
-<div class="actions">
-<a href="manual.pdf" download="regfprobe manual.pdf"><button type="button">Download PDF (clickable contents)</button></a>
-<button type="button" onclick="window.print()">Print</button>
-</div>
-<p><strong>Download PDF</strong> gives the ready-made PDF, with a clickable contents page and bookmarks. If you print to PDF
-yourself, choose <strong>Save as PDF</strong> as the printer: <em>Microsoft Print to PDF</em> drops every link, so its contents page is not clickable. The
-printed copy uses a white page, starts each chapter on a new page, and hides these buttons. From inside regfprobe,
-<strong>Help &rarr; Save Manual as PDF...</strong> saves a ready-made PDF.</p>
-
-<h2 id="about" class="first">1. What regfprobe is</h2>
+<h2 id="about">1. What regfprobe is</h2>
 <p>regfprobe reads Windows registry hive files (SAM, SYSTEM, SOFTWARE, SECURITY, NTUSER.DAT, UsrClass.dat, Amcache.hve
 and others) <strong>offline and read-only</strong>. It never writes to a hive, its logs, or the image it reads them
 from. It can open a loose hive file, or reach straight into an E01 or raw disk image and read the hive from there,
@@ -347,7 +353,7 @@ python regfprobe.py hives "D:\Cases\CASE-001.E01"</code></pre>
 <li><strong>Interpreted fields are an aid.</strong> Reports keep the raw bytes available (optional column) so any decoding can be checked.</li>
 <li><strong>Not found is not absence.</strong> When a profile reports a key missing, the key may simply be named differently on that Windows version.</li>
 </ul>
-<p style="color:var(--muted);font-size:14px;margin-top:40px">Screenshots use a made-up demo hive (<code>docs/demo/SAM</code>, fictional accounts).
+<p class="colophon">Screenshots use a made-up demo hive (<code>docs/demo/SAM</code>, fictional accounts).
 To retake them after a change: <code>python docs/make_demo_hive.py</code> then <code>python docs/make_screenshots.py</code>.
 To rebuild the PDF: <code>python docs/make_pdf.py</code>.</p>
 </main>
