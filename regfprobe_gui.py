@@ -31,6 +31,7 @@ from tkinter import font as tkfont
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import regfprobe  # noqa: E402  pylint: disable=wrong-import-position
 import regfprobe_theme  # noqa: E402  pylint: disable=wrong-import-position
+import regfprobe_profile  # noqa: E402  pylint: disable=wrong-import-position
 import regfprobe_report  # noqa: E402  pylint: disable=wrong-import-position
 
 _PLACEHOLDER = '\x00loading'
@@ -154,6 +155,7 @@ class Window:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         root.minsize(760, 480)
         self.fixed = 'TkFixedFont'
         self.report_entries = []   # (hive, key path, include subkeys) for the HTML report; can span hives
+        self.report_origins = {}   # (id(hive), key path) -> the key profile entry a pulled key came from
         self._banner_level = 'ok'
         self._build()
         self._menus()
@@ -370,6 +372,9 @@ class Window:  # pylint: disable=too-many-instance-attributes,too-many-public-me
                            command=lambda: self.report_add(False))
         report.add_command(label='Add Selected Key and Subkeys', command=lambda: self.report_add(True))
         report.add_command(label='Keys in Report...', command=self.report_manage)
+        report.add_separator()
+        report.add_command(label='Save Selections as Profile...', command=self.profile_save)
+        report.add_command(label='Load Profile from Disk Image...', command=self.profile_load)
         report.add_separator()
         report.add_command(label='Export HTML Report...', command=self.report_dialog)
         menubar.add_cascade(label='Report', menu=report)
@@ -1035,6 +1040,7 @@ class Window:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         hive = self.hive
         self.report_entries = [e for e in self.report_entries
                                if not (e[0] is hive and e[1] == key.path)] + [(hive, key.path, deep)]
+        self.report_origins.pop((id(hive), key.path), None)   # chosen by hand now
         hives = len({id(e[0]) for e in self.report_entries})
         self.set_status(f'Added {key.path or "(root)"}{" and subkeys" if deep else ""} to the report '
                         f'({len(self.report_entries)} selection(s) from {hives} hive(s))')
@@ -1055,16 +1061,20 @@ class Window:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         def refill():
             box.delete(0, 'end')
             for hive, path, deep in self.report_entries:
+                origin = self.report_origins.get((id(hive), path))
                 box.insert('end', f'{_short_hive(hive)}  >  ' + (path or '(root)')
-                           + ('   [+ subkeys]' if deep else ''))
+                           + ('   [+ subkeys]' if deep else '') + (f'   ({origin})' if origin else ''))
 
         def remove():
             gone = set(box.curselection())
             self.report_entries = [e for i, e in enumerate(self.report_entries) if i not in gone]
+            kept = {(id(e[0]), e[1]) for e in self.report_entries}   # an id is reused once its hive is gone
+            self.report_origins = {k: v for k, v in self.report_origins.items() if k in kept}
             refill()
 
         def clear():
             self.report_entries = []
+            self.report_origins = {}
             refill()
 
         def go():
@@ -1086,6 +1096,75 @@ class Window:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         box.bind('<Double-1>', lambda _e: go())
         box.bind('<Delete>', lambda _e: remove())
         refill()
+
+    def profile_save(self):
+        if not self.report_entries:
+            messagebox.showinfo('regfprobe', 'No keys chosen yet. Add keys to the report first; the profile '
+                                'saves that list.', parent=self.root)
+            return
+        entries, skipped = regfprobe_profile.profile_entries(self.report_entries)
+        if not entries:
+            messagebox.showwarning('regfprobe', 'None of these hives can be named inside a disk image.',
+                                   parent=self.root)
+            return
+        path = filedialog.asksaveasfilename(title='Save key profile', parent=self.root, defaultextension='.json',
+                                            filetypes=(('regfprobe key profile', '*.json'),))
+        if not path:
+            return
+        regfprobe_profile.save(path, entries)
+        users = any('/*/' in e[0] for e in entries)
+        message = (f'Saved {len(entries)} key selection(s) to {os.path.basename(path)}.'
+                   + ('\n\nUser hives are saved as Users/*/..., so loading pulls them for every user.'
+                      if users else ''))
+        if skipped:
+            message += '\n\nLeft out (hive path unknown):\n' + '\n'.join(skipped[:10])
+        messagebox.showinfo('regfprobe', message, parent=self.root)
+
+    def profile_load(self):
+        profile = filedialog.askopenfilename(title='Choose a key profile', parent=self.root,
+                                             filetypes=(('regfprobe key profile', '*.json'), ('All files', '*')))
+        if not profile:
+            return
+        try:
+            entries = regfprobe_profile.load(profile)
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            messagebox.showerror('regfprobe', f'Could not read the profile: {error}', parent=self.root)
+            return
+        image = filedialog.askopenfilename(title='Choose the disk image (E01, raw) to pull the keys from',
+                                           parent=self.root)
+        if not image:
+            return
+        replay, cancelled = self.replay.get(), self.cancel_flag.is_set
+
+        def done(result):
+            found, missing, resolved = result
+            added = 0
+            for hive, keys in found:
+                for key_path, deep, origin in keys:
+                    self.report_entries = [e for e in self.report_entries
+                                           if not (e[0] is hive and e[1] == key_path)] + [(hive, key_path, deep)]
+                    if origin:
+                        self.report_origins[(id(hive), key_path)] = origin
+                    else:
+                        self.report_origins.pop((id(hive), key_path), None)
+                    added += 1
+            if found:
+                self.show_hive(found[0][0])
+            self.set_status(f'Profile {os.path.basename(profile)}: added {added} key selection(s) from '
+                            f'{len(found)} hive(s) in {os.path.basename(image)}')
+            message = f'Added {added} key selection(s) from {len(found)} hive(s).'
+            if resolved:
+                message += '\n\n' + '\n'.join(resolved)
+            if missing:
+                message += f'\n\nNot found in this image ({len(missing)}):\n' + '\n'.join(missing[:25])
+                if len(missing) > 25:
+                    message += f'\n... and {len(missing) - 25} more'
+            (messagebox.showwarning if missing else messagebox.showinfo)('regfprobe', message, parent=self.root)
+            if added:
+                self.report_manage()
+
+        self._run(f'Pulling {len(entries)} key selection(s) from {os.path.basename(image)}...',
+                  lambda: regfprobe_profile.pull(image, entries, recover=replay, cancel=cancelled), done)
 
     def _report_options(self):
         """Ask which optional columns go in the report; None when cancelled. Choices are remembered."""
@@ -1135,12 +1214,13 @@ class Window:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             return
         groups = []   # one per hive, in the order hives were first added
         for hive, key_path, deep in self.report_entries:
+            entry = (key_path, deep, self.report_origins.get((id(hive), key_path), ''))
             for group in groups:
                 if group[0] is hive:
-                    group[2].append((key_path, deep))
+                    group[2].append(entry)
                     break
             else:
-                groups.append((hive, self._banner_info(hive), [(key_path, deep)]))
+                groups.append((hive, self._banner_info(hive), [entry]))
         names = [os.path.basename(regfprobe_report.hive_label(g[0])) for g in groups]
         title = 'Registry report: ' + ', '.join(names)
 

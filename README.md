@@ -9,7 +9,8 @@ One file, `regfprobe.py`, Python 3.10 or later, standard library only. Nothing t
 no mounting. It is meant to be copied into other tools as it is (vendored), the way qnxprobe and
 ewfprobe are copied into the LEAPPs. Optional files put a read-only window over it:
 `regfprobe_gui.py`, its colours in `regfprobe_theme.py`, and its HTML report in
-`regfprobe_report.py` and `regfprobe_interpret.py`. They are standard library too.
+`regfprobe_report.py` and `regfprobe_interpret.py`, and its key profiles in `regfprobe_profile.py`.
+They are standard library too.
 
 The name comes from `regf`, the four bytes every hive file starts with.
 
@@ -77,6 +78,14 @@ only read.
   decodes it, never guessed at from its name or its bytes. Keys can come from several hives
   (open one hive, add keys, open the next, add more): the report then has a section per hive,
   each with its own trust banner, and Keys in Report shows which hive each key is from
+- key profiles: Report > Save Selections as Profile writes the chosen keys to a small JSON file;
+  Report > Load Profile from Disk Image pulls the same keys from any E01 or raw image into the
+  report list. Hives are named by their path in the image, with user hives as `Users/*/NTUSER.DAT`
+  so every user is pulled; a SAM account key is saved as every account. A key under the control
+  set that `Select\Current` names is saved as `CurrentControlSet` and resolved again on each image
+  (the load message says which set it became); a key under any other control set is saved as
+  chosen. A profile is loaded as written, so one edited to name one account or one control set
+  pulls only that. Anything the image does not have is listed
 
 It has the usual menus (File, Edit, Report, View, Help) and right-click menus on the tree, the values
 and the result lists. Copy covers the key path, the value name, the value data and its bytes
@@ -258,7 +267,7 @@ regfprobe does not decode the `settings.dat` composite types. A tool that needs 
 ## Vendoring
 
 Copy `regfprobe.py` verbatim (and `regfprobe_gui.py`, `regfprobe_theme.py`, `regfprobe_report.py`
-and `regfprobe_interpret.py` if you want the window), keep `LICENSE`
+and `regfprobe_interpret.py`, plus `regfprobe_profile.py` for key profiles, if you want the window), keep `LICENSE`
 beside it as `LICENSE-regfprobe`, and record the commit and SHA-256 you copied. Fix problems
 here and copy again, so the copies do not drift.
 
