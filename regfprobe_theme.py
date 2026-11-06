@@ -37,6 +37,21 @@ def _walk(widget):
         yield from _walk(child)
 
 
+def _reset_popdown(combobox):
+    """Forget a combobox's drop-down list, so the next opening builds it in the current colours.
+
+    Tk builds that list (a Listbox Python does not see, so _walk misses it) the first time the
+    combobox opens, from the option database at that moment, and keeps it. Destroyed, it is
+    built again the next time the combobox opens.
+    """
+    popdown = f'{combobox}.popdown'
+    try:
+        if combobox.tk.call('winfo', 'exists', popdown):
+            combobox.tk.call('destroy', popdown)
+    except tk.TclError:
+        pass
+
+
 class Theme:
     def __init__(self, root):
         self.root = root
@@ -72,6 +87,15 @@ class Theme:
             style.configure('TButton', background=c['button'], padding=(10, 3))
             style.map('TButton', background=[('pressed', c['select']), ('active', c['hover'])])
             style.configure('TEntry', fieldbackground=c['field'], foreground=c['fg'])
+            style.configure('TCombobox', fieldbackground=c['field'], foreground=c['fg'], background=c['button'],
+                            arrowcolor=c['fg'], selectbackground=c['field'], selectforeground=c['fg'])
+            style.map('TCombobox', fieldbackground=[('readonly', c['field'])], foreground=[('readonly', c['fg'])],
+                      background=[('active', c['hover']), ('readonly', c['button'])],
+                      selectbackground=[('readonly', c['field'])], selectforeground=[('readonly', c['fg'])])
+            root.option_add('*TCombobox*Listbox.background', c['field'])
+            root.option_add('*TCombobox*Listbox.foreground', c['fg'])
+            root.option_add('*TCombobox*Listbox.selectBackground', c['select'])
+            root.option_add('*TCombobox*Listbox.selectForeground', c['select_fg'])
             style.configure('TCheckbutton', background=c['bg'], indicatorbackground=c['field'],
                             indicatorforeground=c['select_fg'], upperbordercolor=c['muted'],
                             lowerbordercolor=c['muted'])
@@ -123,6 +147,8 @@ class Theme:
                 if menu:
                     self._remember(widget, list(menu))
                 self._recolour(widget, menu)
+            elif cls == 'TCombobox':
+                _reset_popdown(widget)
             elif cls in ('Toplevel', 'Tk'):
                 if dark:
                     self._remember(widget, ['background'])

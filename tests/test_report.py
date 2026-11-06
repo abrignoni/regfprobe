@@ -68,6 +68,16 @@ class ReportTest(unittest.TestCase):
         self.assertIn('banner warn', text)
         self.assertEqual(len(set(re.findall(r'<section id="([^"]+)"', text))), count)   # anchors unique
 
+    def test_selection_shows_the_profile_entry_it_came_from(self):
+        origin = r'profile entry CurrentControlSet\X; CurrentControlSet is ControlSet001, from Select\Current <b>'
+        stream = io.StringIO()
+        regfprobe_report.write_multi_report([(self.hive, ('ok', '', ''), [('Software', False, origin),
+                                                                         ('Values', False, '')])], stream)
+        chosen = re.findall(r'<li>(.*?)</li>', stream.getvalue().split('<strong>Keys in this report')[0])
+        self.assertEqual(chosen, ['Software <span class="origin">(profile entry CurrentControlSet\\X; '
+                                  'CurrentControlSet is ControlSet001, from Select\\Current &lt;b&gt;)</span>',
+                                  'Values'])
+
     def test_text_is_escaped(self):
         _count, text = _report(self.hive, [('', True)], title='<b>x</b>')
         self.assertIn('&lt;b&gt;x&lt;/b&gt;', text)
@@ -143,6 +153,14 @@ class _Hive:  # pylint: disable=too-few-public-methods
         self.path, self.name = path, None
 
 
+def _system_hive(current):
+    tree = {'name': 'ROOT', 'keys': [
+        {'name': 'Select', 'values': [hivebuilder.V('Current', 4, struct.pack('<I', current))]},
+        {'name': 'ControlSet001', 'keys': [{'name': 'Control'}]},
+        {'name': 'ControlSet002', 'keys': [{'name': 'Control'}]}]}
+    return regfprobe.Hive(hivebuilder.build(tree), name='SYSTEM')
+
+
 class ProfileTest(unittest.TestCase):
     def test_hive_patterns(self):
         pattern = regfprobe_profile.hive_pattern
@@ -170,14 +188,36 @@ class ProfileTest(unittest.TestCase):
                          r'SAM\Domains\Builtin\Aliases\00000220')
         self.assertEqual(general('Windows/System32/config/SOFTWARE', r'Users\X'), r'Users\X')
 
-    def test_control_sets_become_current(self):
+    def test_only_the_current_control_set_becomes_current(self):
         general = regfprobe_profile.general_key
         system = 'Windows/System32/config/SYSTEM'
-        self.assertEqual(general(system, r'ControlSet002\Control\TimeZoneInformation'),
+        hive = _system_hive(current=1)
+        self.assertEqual(general(system, r'ControlSet001\Control\TimeZoneInformation', hive),
                          r'CurrentControlSet\Control\TimeZoneInformation')
-        self.assertEqual(general(system, 'ControlSet001'), 'CurrentControlSet')
-        self.assertEqual(general(system, r'Select'), 'Select')
-        self.assertEqual(general('Windows/System32/config/SOFTWARE', r'ControlSet001\X'), r'ControlSet001\X')
+        self.assertEqual(general(system, 'ControlSet001', hive), 'CurrentControlSet')
+        # a control set that is not the current one was picked on purpose and is kept
+        self.assertEqual(general(system, r'ControlSet002\Control\TimeZoneInformation', hive),
+                         r'ControlSet002\Control\TimeZoneInformation')
+        # without the hive there is no Select\Current to compare with, so nothing is rewritten
+        self.assertEqual(general(system, r'ControlSet001\Control', None), r'ControlSet001\Control')
+        self.assertEqual(general(system, r'Select', hive), 'Select')
+        self.assertEqual(general('Windows/System32/config/SOFTWARE', r'ControlSet001\X', hive), r'ControlSet001\X')
+        self.assertEqual(regfprobe_profile.expand(_system_hive(current=2), r'CurrentControlSet\Control'),
+                         [r'ControlSet002\Control'])
+
+    def test_profile_entries_generalise_then_dedupe(self):
+        sam = _Hive('x.E01::p3/Windows/System32/config/SAM')
+        system = _system_hive(current=1)
+        system.path = 'x.E01::p3/Windows/System32/config/SYSTEM'
+        entries, skipped = regfprobe_profile.profile_entries([
+            (sam, r'SAM\Domains\Account\Users\000003E9', False),
+            (sam, r'SAM\Domains\Account\Users\000003EA', False),
+            (system, r'ControlSet001\Control', False), (system, r'ControlSet002\Control', False),
+            (_Hive('C:/exports/thing.bin'), 'Software', False)])
+        self.assertEqual(entries, [('Windows/System32/config/SAM', r'SAM\Domains\Account\Users\*', False),
+                                   ('Windows/System32/config/SYSTEM', r'CurrentControlSet\Control', False),
+                                   ('Windows/System32/config/SYSTEM', r'ControlSet002\Control', False)])
+        self.assertEqual(skipped, ['C:/exports/thing.bin: Software'])
 
     def test_current_control_set_without_select_finds_nothing(self):
         hive = regfprobe.Hive(hivebuilder.build(hivebuilder.sample_tree()))
@@ -197,6 +237,11 @@ class ProfileTest(unittest.TestCase):
             path = os.path.join(folder, 'p.json')
             regfprobe_profile.save(path, entries)
             self.assertEqual(regfprobe_profile.load(path), entries)
+            # a profile is loaded as written: one named account or control set stays named
+            exact = [('Windows/System32/config/SAM', r'SAM\Domains\Account\Users\000003E9', False),
+                     ('Windows/System32/config/SYSTEM', r'ControlSet002\Control', False)]
+            regfprobe_profile.save(path, exact)
+            self.assertEqual(regfprobe_profile.load(path), exact)
             with open(path, 'w', encoding='utf-8') as handle:
                 handle.write('{"something": 1}')
             with self.assertRaises(ValueError):
