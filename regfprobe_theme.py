@@ -37,6 +37,21 @@ def _walk(widget):
         yield from _walk(child)
 
 
+def _reset_popdown(combobox):
+    """Forget a combobox's drop-down list, so the next opening builds it in the current colours.
+
+    Tk builds that list (a Listbox Python does not see, so _walk misses it) the first time the
+    combobox opens, from the option database at that moment, and keeps it. Destroyed, it is
+    built again the next time the combobox opens.
+    """
+    popdown = f'{combobox}.popdown'
+    try:
+        if combobox.tk.call('winfo', 'exists', popdown):
+            combobox.tk.call('destroy', popdown)
+    except tk.TclError:
+        pass
+
+
 class Theme:
     def __init__(self, root):
         self.root = root
@@ -132,6 +147,8 @@ class Theme:
                 if menu:
                     self._remember(widget, list(menu))
                 self._recolour(widget, menu)
+            elif cls == 'TCombobox':
+                _reset_popdown(widget)
             elif cls in ('Toplevel', 'Tk'):
                 if dark:
                     self._remember(widget, ['background'])
