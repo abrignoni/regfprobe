@@ -81,8 +81,11 @@ only read.
 - key profiles: Report > Save Selections as Profile writes the chosen keys to a small JSON file;
   Report > Load Profile from Disk Image pulls the same keys from any E01 or raw image into the
   report list. Hives are named by their path in the image, with user hives as `Users/*/NTUSER.DAT`
-  so every user is pulled; SAM account keys become every account; `ControlSetNNN` becomes the
-  current control set (read from `Select\Current`). Anything the image does not have is listed
+  so every user is pulled; a SAM account key is saved as every account. A key under the control
+  set that `Select\Current` names is saved as `CurrentControlSet` and resolved again on each image
+  (the load message says which set it became); a key under any other control set is saved as
+  chosen. A profile is loaded as written, so one edited to name one account or one control set
+  pulls only that. Anything the image does not have is listed
 
 It has the usual menus (File, Edit, Report, View, Help) and right-click menus on the tree, the values
 and the result lists. Copy covers the key path, the value name, the value data and its bytes

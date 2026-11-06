@@ -51,17 +51,18 @@ def _regex(pattern):
 _SAM_USERS = ('SAM', 'DOMAINS', 'ACCOUNT', 'USERS')
 
 
-def general_key(pattern, key_path):
+def general_key(pattern, key_path, hive=None):
     r"""A key path with its account-specific part made '*', so a profile fits any machine.
 
     SAM\Domains\Account\Users\<RID> and ...\Users\Names\<name> name one account; they become
     Users\* and Users\Names\* (every account). In SYSTEM, ControlSet001 (or 002...) becomes
-    CurrentControlSet, which loading resolves through Select\Current on each machine.
-    Other keys are kept as they are.
+    CurrentControlSet only when hive is given and its Select\Current names that same set, so a
+    control set picked on purpose (not the current one) is kept as picked. Other keys are kept.
     """
     if pattern.upper().endswith('/SYSTEM'):
         first, _sep, rest = key_path.partition('\\')
-        if re.fullmatch(r'ControlSet\d{3}', first, re.IGNORECASE):
+        if re.fullmatch(r'ControlSet\d{3}', first, re.IGNORECASE) and hive is not None \
+                and first.upper() == (current_control_set(hive) or '').upper():
             return 'CurrentControlSet' + ('\\' + rest if rest else '')
         return key_path
     if not pattern.upper().endswith('/SAM'):
@@ -75,6 +76,24 @@ def general_key(pattern, key_path):
         elif upper[4] != '*':
             parts[4] = '*'
     return '\\'.join(parts)
+
+
+def profile_entries(report_entries):
+    """[(hive, key path, include subkeys)] from the report -> (entries, skipped) for save().
+
+    entries are (hive pattern, general key path, include subkeys), each once; skipped lists the
+    selections whose hive cannot be named inside a disk image.
+    """
+    entries, skipped = [], []
+    for hive, key_path, deep in report_entries:
+        pattern = hive_pattern(hive)
+        if pattern is None:
+            skipped.append(f'{hive.path or hive.name}: {key_path}')
+            continue
+        item = (pattern, general_key(pattern, key_path, hive), bool(deep))
+        if item not in entries:
+            entries.append(item)
+    return entries, skipped
 
 
 def current_control_set(hive):
@@ -118,24 +137,27 @@ def expand(hive, key_path):
 
 
 def save(path, entries, name=''):
-    """entries: [(hive pattern, key path, include subkeys)]."""
+    """entries: [(hive pattern, key path, include subkeys)], written as given (see profile_entries)."""
     data = {'regfprobe_profile': FORMAT, 'name': name or os.path.splitext(os.path.basename(path))[0],
-            'entries': [{'hive': h, 'key': general_key(h, k), 'subkeys': bool(d)} for h, k, d in entries]}
+            'entries': [{'hive': h, 'key': k, 'subkeys': bool(d)} for h, k, d in entries]}
     with open(path, 'w', encoding='utf-8') as handle:
         json.dump(data, handle, indent=2, ensure_ascii=False)
         handle.write('\n')
 
 
 def load(path):
-    """[(hive pattern, key path, include subkeys)] from a profile file."""
+    """[(hive pattern, key path, include subkeys)] from a profile file, as written there.
+
+    Keys are not rewritten on load, so a profile can name one control set or one account.
+    """
     with open(path, encoding='utf-8') as handle:
         data = json.load(handle)
     if not isinstance(data, dict) or data.get('regfprobe_profile') != FORMAT:
         raise ValueError(f'{os.path.basename(path)} is not a regfprobe key profile')
     out = []
     for e in data.get('entries', []):
-        item = (e['hive'], general_key(e['hive'], e.get('key', '')), bool(e.get('subkeys')))
-        if item not in out:   # an older profile listing two accounts' keys becomes one '*' entry
+        item = (e['hive'], e.get('key', ''), bool(e.get('subkeys')))
+        if item not in out:
             out.append(item)
     return out
 
@@ -143,9 +165,10 @@ def load(path):
 def pull(image, entries, recover=True, password=None, cancel=None):
     """Read every hive the profile names from the image and check its keys.
 
-    Returns (found, missing): found is [(hive, [(key path, subkeys)])] in profile order, one item
-    per hive file (so one per user for a Users/* pattern); missing is [str] describing what the
-    profile asked for and the image does not have.
+    Returns (found, missing, resolved): found is [(hive, [(key path, subkeys)])] in profile order,
+    one item per hive file (so one per user for a Users/* pattern); missing is [str] describing
+    what the profile asked for and the image does not have; resolved is [str] naming the control
+    set CurrentControlSet stood for in each hive, as Select\\Current gives it.
     """
     patterns = []
     for pattern, _key, _deep in entries:
@@ -169,7 +192,7 @@ def pull(image, entries, recover=True, password=None, cancel=None):
                     order.append((pattern, label, clean))
                     break
 
-    found, missing = [], []
+    found, missing, resolved = [], [], []
     by_pattern = {}
     for pattern, label, clean in order:
         folder, base = clean.rsplit('/', 1) if '/' in clean else ('', clean)
@@ -197,6 +220,13 @@ def pull(image, entries, recover=True, password=None, cancel=None):
             for p, key_path, deep in entries:
                 if p != pattern:
                     continue
+                if key_path.upper().split('\\', 1)[0] == 'CURRENTCONTROLSET':
+                    current = current_control_set(hive)
+                    note = (f'{hive.path.split("::")[-1]}: CurrentControlSet is {current}, from Select\\Current'
+                            if current else f'{hive.path.split("::")[-1]}: no Select\\Current, so CurrentControlSet '
+                            'names no control set')
+                    if note not in resolved:
+                        resolved.append(note)
                 try:
                     paths = expand(hive, key_path)
                 except regfprobe.RegfError:
@@ -207,4 +237,4 @@ def pull(image, entries, recover=True, password=None, cancel=None):
                 keys.extend((path, deep) for path in paths if (path, deep) not in keys)
             if keys:
                 found.append((hive, keys))
-    return found, missing
+    return found, missing, resolved

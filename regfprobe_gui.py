@@ -1096,13 +1096,7 @@ class Window:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             messagebox.showinfo('regfprobe', 'No keys chosen yet. Add keys to the report first; the profile '
                                 'saves that list.', parent=self.root)
             return
-        entries, skipped = [], []
-        for hive, key_path, deep in self.report_entries:
-            pattern = regfprobe_profile.hive_pattern(hive)
-            if pattern is None:
-                skipped.append(f'{hive.path or hive.name}: {key_path}')
-            elif (pattern, key_path, deep) not in entries:
-                entries.append((pattern, key_path, deep))
+        entries, skipped = regfprobe_profile.profile_entries(self.report_entries)
         if not entries:
             messagebox.showwarning('regfprobe', 'None of these hives can be named inside a disk image.',
                                    parent=self.root)
@@ -1137,7 +1131,7 @@ class Window:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         replay, cancelled = self.replay.get(), self.cancel_flag.is_set
 
         def done(result):
-            found, missing = result
+            found, missing, resolved = result
             added = 0
             for hive, keys in found:
                 for key_path, deep in keys:
@@ -1149,6 +1143,8 @@ class Window:  # pylint: disable=too-many-instance-attributes,too-many-public-me
             self.set_status(f'Profile {os.path.basename(profile)}: added {added} key selection(s) from '
                             f'{len(found)} hive(s) in {os.path.basename(image)}')
             message = f'Added {added} key selection(s) from {len(found)} hive(s).'
+            if resolved:
+                message += '\n\n' + '\n'.join(resolved)
             if missing:
                 message += f'\n\nNot found in this image ({len(missing)}):\n' + '\n'.join(missing[:25])
                 if len(missing) > 25:
