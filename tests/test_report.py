@@ -55,6 +55,18 @@ class ReportTest(unittest.TestCase):
         _count, text = _report(self.hive, [('', True)], show_data=False, show_raw=False)
         self.assertIn('hello', re.findall(r'<td class="interp">(.*?)</td>', text))
 
+    def test_several_hives_get_a_section_each(self):
+        other = regfprobe.Hive(hivebuilder.build(hivebuilder.sample_tree()), name='OTHER')
+        groups = [(self.hive, ('ok', 'Clean hive', 'a'), [('', False)]),
+                  (other, ('warn', 'Dirty hive', 'b'), [('', True)])]
+        stream = io.StringIO()
+        count = regfprobe_report.write_multi_report(groups, stream)
+        text = stream.getvalue()
+        self.assertEqual(count, 1 + sum(1 for _ in other.walk()))
+        self.assertEqual(text.count('class="hivehead"'), 2)
+        self.assertIn('banner warn', text)
+        self.assertEqual(len(set(re.findall(r'<section id="([^"]+)"', text))), count)   # anchors unique
+
     def test_text_is_escaped(self):
         _count, text = _report(self.hive, [('', True)], title='<b>x</b>')
         self.assertIn('&lt;b&gt;x&lt;/b&gt;', text)

@@ -74,7 +74,9 @@ only read.
   column decodes only SAM layouts with a published source (the user F and V values, the alias C
   value, the RID stored as the Names value type) and pictures whose file header checks out; the
   sources are listed in `regfprobe_interpret.py`. Every other value is shown as regfprobe
-  decodes it, never guessed at from its name or its bytes
+  decodes it, never guessed at from its name or its bytes. Keys can come from several hives
+  (open one hive, add keys, open the next, add more): the report then has a section per hive,
+  each with its own trust banner, and Keys in Report shows which hive each key is from
 
 It has the usual menus (File, Edit, Report, View, Help) and right-click menus on the tree, the values
 and the result lists. Copy covers the key path, the value name, the value data and its bytes
