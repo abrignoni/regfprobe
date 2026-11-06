@@ -67,7 +67,7 @@ th{background:var(--panel);font-weight:700}
 <h1>regfprobe User Manual</h1>
 <p class="lede">Reading Windows registry hives offline, choosing keys, and reporting on them: hives and disk images,
 search and timeline, HTML reports from one or many hives, and key profiles you can pull from any E01.</p>
-<p class="byline">regfprobe 0.2.1<br>Updated November 6, 2026</p>
+<p class="byline">regfprobe after 0.2.1: the report, profiles and dark mode are on main and come in the next release<br>Updated November 6, 2026</p>
 <p class="live">Source and latest version: <a href="https://github.com/abrignoni/regfprobe">github.com/abrignoni/regfprobe</a></p>
 <div class="actions">
 <a href="manual.pdf" download="regfprobe manual.pdf"><button type="button">Download PDF (clickable contents)</button></a>
@@ -119,7 +119,7 @@ the window, the command line, and every export, so the data you see on screen is
 <tr><td><code>regfprobe_theme.py</code></td><td>Dark mode</td></tr>
 <tr><td><code>regfprobe_report.py</code>, <code>regfprobe_interpret.py</code></td><td>HTML reports and the Interpreted column</td></tr>
 <tr><td><code>regfprobe_profile.py</code></td><td>Key profiles</td></tr>
-<tr><td><code>qnxprobe.py</code>, <code>ewfprobe.py</code></td><td>Reading disk images (from the qnxprobe project). Only needed to open hives inside E01/raw images.</td></tr>
+<tr><td><code>qnxprobe.py</code>, <code>ewfprobe.py</code></td><td>Reading disk images (from the qnxprobe and ewfprobe projects). Only needed to open hives inside E01/raw images.</td></tr>
 <tr><td><code>docs/</code></td><td>This manual and its screenshots</td></tr>
 </table></li>
 </ul>
@@ -143,7 +143,7 @@ E01 or raw image, searches every volume in it for files named like hives, and li
 <h3>Transaction logs</h3>
 <p>Windows writes registry changes to the <code>.LOG1</code>/<code>.LOG2</code> files first and folds them into the hive
 later, so a hive taken from a running or crashed machine is often "dirty". By default regfprobe replays the logs in
-memory, so you see the registry as Windows last saw it. To see the hive exactly as stored on disk instead, untick
+memory, so you also see the changes they hold that were not yet in the hive. To see the hive exactly as stored on disk instead, untick
 <strong>File &rarr; Replay Transaction Logs When Opening</strong> before opening it.</p>
 
 <h2 id="banner">4. How far to trust a hive</h2>
@@ -151,9 +151,10 @@ memory, so you see the registry as Windows last saw it. To see the hive exactly 
 <table>
 <tr><th>Banner</th><th>Meaning</th></tr>
 <tr><td><span class="swatch" style="background:var(--ok)"></span>Clean hive</td><td>Stored cleanly; read as it is.</td></tr>
-<tr><td><span class="swatch" style="background:var(--info)"></span>Dirty hive: transaction logs replayed in memory</td><td>The logs held newer data and it was applied. The banner says how many pages were replayed.</td></tr>
-<tr><td><span class="swatch" style="background:var(--warn)"></span>Dirty hive read as it is / Read without replaying</td><td>The hive is behind its logs and they were not applied (missing, or replay turned off).</td></tr>
-<tr><td><span class="swatch" style="background:var(--bad)"></span>Damaged structures were skipped</td><td>Some cells could not be read. Everything readable is shown; the banner counts what was skipped.</td></tr>
+<tr><td><span class="swatch" style="background:var(--info)"></span>Dirty hive: transaction logs replayed in memory</td><td>The logs held newer data and it was applied. The banner says how many log entries were replayed, their sequence numbers and which logs they came from.</td></tr>
+<tr><td><span class="swatch" style="background:var(--warn)"></span>Dirty hive read as it is: the transaction logs were not applied</td><td>The hive is behind its logs, but they were missing or could not be used (for example a log that fails its checks, or a replay that would set a key's time back). The banner gives the reason.</td></tr>
+<tr><td><span class="swatch" style="background:var(--warn)"></span>Read without replaying transaction logs</td><td>Replay was turned off, so the logs were not read. The hive may or may not be dirty; regfprobe did not check.</td></tr>
+<tr><td><span class="swatch" style="background:var(--bad)"></span>Damaged structures were skipped</td><td>Some cells could not be read. Everything readable is shown; the banner counts what was skipped so far, and the count grows as more keys are opened.</td></tr>
 </table>
 <p>The same banner is copied into every HTML report, per hive.</p>
 
@@ -171,7 +172,7 @@ memory, so you see the registry as Windows last saw it. To see the hive exactly 
 <p>The <strong>Notes</strong> column flags anything unusual about how a value is stored (for example a string with no terminator, or data shorter than its stated size).</p>
 
 <h2 id="search">6. Search</h2>
-<p>The <strong>Search</strong> tab (<kbd>Ctrl</kbd>+<kbd>F</kbd>) looks through the whole hive. Type the text, choose what to
+<p>The <strong>Search</strong> tab (<kbd>Ctrl</kbd>+<kbd>F</kbd>) looks through the whole hive and stops at 5,000 matches (the status bar says so; narrow the search). Type the text, choose what to
 search (<em>names and data</em>, <em>names</em> only, or <em>data</em> only), and press <strong>Search</strong> or
 <kbd>Enter</kbd>. Double-click a result, or press <kbd>Enter</kbd>, to jump to that key.</p>
 <figure><img src="img/search.png" alt="Search tab with two results for jdoe">
@@ -188,8 +189,8 @@ and/or <strong>To</strong> (UTC, <code>YYYY-MM-DD</code> or <code>YYYY-MM-DD HH:
 <strong>File &rarr; Save Timeline as CSV...</strong> writes the whole timeline to a spreadsheet-friendly file.</p>
 <figure><img src="img/timeline.png" alt="Timeline tab listing keys by last written time">
 <figcaption>Every key by last-written time, newest first.</figcaption></figure>
-<div class="note">A key's last-written time changes when the key or any of its values changes. It does not tell you
-<em>which</em> value changed, and it does not change when a subkey's values change.</div>
+<div class="note">A key's last-written time changes when one of its values is set, changed or deleted, and when a subkey is created or deleted under it. It does not tell you
+<em>which</em> change it was, and it does not change when a subkey's values change.</div>
 
 <h2 id="export">8. Copying and exporting</h2>
 <table>
@@ -252,12 +253,12 @@ regfprobe data column is left out and as a dash when that column is included.</p
 <tr><td>SAM <code>Domains\Account\Users\&lt;RID&gt;</code></td><td><code>F</code></td><td>Last logon, password last set, account expiry, last failed logon, RID, account flags (disabled, password not required, password never expires...), failed and total logon counts</td></tr>
 <tr><td>SAM <code>Domains\Account\Users\&lt;RID&gt;</code></td><td><code>V</code></td><td>User name, full name, comment, user comment, home directory and drive, logon script, profile path, allowed workstations; the size of the LM and NT hash entries (never the hashes themselves)</td></tr>
 <tr><td>SAM <code>Users\Names\&lt;name&gt;</code></td><td>(default)</td><td>The account's RID. Windows stores it as the value's <em>type</em>, which is why the Values tab shows "unknown type 0x3e9".</td></tr>
-<tr><td>SAM <code>Builtin\Aliases\&lt;RID&gt;</code></td><td><code>C</code></td><td>Group name, description and member SIDs</td></tr>
+<tr><td>SAM <code>Builtin\Aliases\&lt;RID&gt;</code> and <code>Account\Aliases\&lt;RID&gt;</code></td><td><code>C</code></td><td>Group name, description and member SIDs</td></tr>
 <tr><td>SAM <code>Domains\Account\Users\&lt;RID&gt;</code></td><td><code>UserTile</code></td><td>The account picture, found after the value's header and shown in the report</td></tr>
-<tr><td>Anywhere, binary values</td><td>Data that starts with a valid PNG, JPEG or BMP header</td><td>The picture itself</td></tr>
+<tr><td>Anywhere, binary values</td><td>Data that starts with a PNG or BMP header that checks out, or with a JPEG's first three bytes</td><td>The picture itself</td></tr>
 </table>
-<div class="note warn"><strong>Read SAM logon data with care.</strong> Sign-ins with a Microsoft account, PIN or Windows Hello often do not
-update the SAM's last logon or logon count. "Never" or 0 there does not prove the account was never used; check it against the event logs.</div>
+<div class="note warn"><strong>Read SAM logon data with care.</strong> The last logon, logon counts and other F fields are shown as stored.
+Which sign-ins update them is not covered here, so "Never" or 0 does not prove the account was never used; check it against the event logs.</div>
 
 <h2 id="profiles">11. Key profiles</h2>
 <p>A profile is a saved list of keys you look at on most cases. Save it once, then pull all of those keys from any
@@ -283,9 +284,9 @@ are saved as patterns and filled in when the profile is loaded:</p>
 <tr><td><code>Users/jdoe/NTUSER.DAT</code></td><td><code>Users/*/NTUSER.DAT</code></td><td>That hive for <strong>every</strong> user (UsrClass.dat likewise). The Default profile's hive is checked too.</td></tr>
 <tr><td>SAM <code>Users\000003E9</code></td><td>SAM <code>Users\*</code></td><td>Every account's key</td></tr>
 <tr><td>SAM <code>Users\Names\jdoe</code></td><td>SAM <code>Users\Names\*</code></td><td>Every account name</td></tr>
-<tr><td>SYSTEM <code>ControlSet001\...</code></td><td>SYSTEM <code>CurrentControlSet\...</code></td><td>The control set <code>Select\Current</code> names on that machine</td></tr>
+<tr><td>SYSTEM <code>ControlSet001\...</code></td><td>SYSTEM <code>CurrentControlSet\...</code></td><td>The control set <code>Select\Current</code> names on that machine. This happens only when the set you picked was the current one; any other control set is saved as picked.</td></tr>
 </table>
-<p>Profiles saved before these patterns existed are upgraded the same way when loaded.</p>
+<p>Loading uses each key exactly as the profile file names it; nothing is rewritten on load.</p>
 <h3>The profile file</h3>
 <p>A profile is a small, readable JSON file. You can share it with colleagues or edit it by hand; <code>*</code>
 stands for any one folder (in hive paths) or any one subkey (in key paths).</p>
@@ -305,11 +306,12 @@ SYSTEM, SOFTWARE, SECURITY, DEFAULT, NTUSER.DAT, UsrClass.dat, Amcache.hve); oth
 hives; a large SOFTWARE hive can take a few hundred MB.</div>
 
 <h2 id="dark">12. Dark mode</h2>
-<p><strong>View &rarr; Dark Mode</strong> switches the whole window, dialogs and title bars to dark colours, and is
-remembered for next time. Every screenshot in this manual was taken in dark mode. The menu bar along the top stays
-light because Windows draws it. HTML reports and this manual follow your browser's or system's own light/dark setting.</p>
+<p><strong>View &rarr; Dark Mode</strong> switches the whole window and its dialogs to dark colours (and the title bars on Windows), and is
+remembered for next time. Every screenshot in this manual was taken in dark mode. The menu bar stays
+light because the operating system draws it. HTML reports follow the browser's own light/dark setting; this manual does not.</p>
 
 <h2 id="keys">13. Keyboard shortcuts</h2>
+<p>On macOS, use <kbd>Cmd</kbd> where this table says <kbd>Ctrl</kbd>.</p>
 <table>
 <tr><th>Keys</th><th>Action</th></tr>
 <tr><td><kbd>Ctrl</kbd>+<kbd>O</kbd></td><td>Open a hive file</td></tr>
@@ -324,6 +326,7 @@ light because Windows draws it. HTML reports and this manual follow your browser
 <tr><td><kbd>F1</kbd></td><td>Open this manual</td></tr>
 <tr><td><kbd>Esc</kbd></td><td>Cancel a running task</td></tr>
 <tr><td>Arrows, <kbd>Enter</kbd>, <kbd>Tab</kbd></td><td>Move in the tree, open or close a key, move between panes</td></tr>
+<tr><td><kbd>Shift</kbd>+<kbd>F10</kbd>, or the Menu key on Windows and Linux</td><td>The right-click menu of the selected row</td></tr>
 </table>
 
 <h2 id="cli">14. Command line</h2>
@@ -343,13 +346,14 @@ light because Windows draws it. HTML reports and this manual follow your browser
 <pre><code>python regfprobe.py info SYSTEM
 python regfprobe.py ls SOFTWARE "Microsoft\Windows NT\CurrentVersion"
 python regfprobe.py export SYSTEM "ControlSet001\Services" --format csv --out services.csv
-python regfprobe.py hives "D:\Cases\CASE-001.E01"</code></pre>
+python regfprobe.py hives --image "D:\Cases\CASE-001.E01"
+python regfprobe.py logs SYSTEM</code></pre>
 
 <h2 id="tips">15. Tips and cautions</h2>
 <ul>
 <li><strong>Read-only.</strong> regfprobe never changes evidence. Transaction-log replay happens in memory only.</li>
 <li><strong>Times are UTC.</strong> Convert them yourself using the machine's time zone (SYSTEM <code>CurrentControlSet\Control\TimeZoneInformation</code>), which is a good key to keep in a profile.</li>
-<li><strong>Dirty hives.</strong> If the banner is orange, compare with replay on and off: the difference is what the logs held.</li>
+<li><strong>Dirty hives.</strong> <code>regfprobe.py logs</code> shows what the transaction logs hold and what replay changes. When the logs are there, opening the hive with replay on and off shows the same difference in the window.</li>
 <li><strong>Interpreted fields are an aid.</strong> Reports keep the raw bytes available (optional column) so any decoding can be checked.</li>
 <li><strong>Not found is not absence.</strong> When a profile reports a key missing, the key may simply be named differently on that Windows version.</li>
 </ul>
