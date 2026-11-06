@@ -10,7 +10,8 @@ no mounting. It is meant to be copied into other tools as it is (vendored), the 
 ewfprobe are copied into the LEAPPs. Optional files put a read-only window over it:
 `regfprobe_gui.py`, its colours in `regfprobe_theme.py`, and its HTML report in
 `regfprobe_report.py` and `regfprobe_interpret.py`, and its key profiles in `regfprobe_profile.py`.
-They are standard library too.
+They are standard library too. A user manual with screenshots is in `docs/manual.html` (also
+`docs/manual.pdf`); the window opens it from Help > User Manual or F1.
 
 The name comes from `regf`, the four bytes every hive file starts with.
 
