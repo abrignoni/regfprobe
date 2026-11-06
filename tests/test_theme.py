@@ -20,15 +20,17 @@ box = ttk.Combobox(root, values=['a', 'b'], state='readonly')
 
 def listbox():
     popdown = root.tk.call('ttk::combobox::PopdownWindow', box)   # what opening the list builds
-    return str(root.tk.call(f'{popdown}.f.l', 'cget', '-background'))
+    colour = root.tk.call(f'{popdown}.f.l', 'cget', '-background')
+    return list(root.winfo_rgb(colour))   # 'white' and '#ffffff' are the same colour
 
 light = listbox()                # opened once in light mode
 theme.apply(True)
 dark = listbox()                 # then in dark mode
 theme.apply(False)
 back = listbox()                 # and in light mode again
+field = list(root.winfo_rgb(regfprobe_theme.DARK['field']))
 root.destroy()
-print(json.dumps({'light': light, 'dark': dark, 'back': back, 'field': regfprobe_theme.DARK['field']}))
+print(json.dumps({'light': light, 'dark': dark, 'back': back, 'field': field}))
 '''
 
 
