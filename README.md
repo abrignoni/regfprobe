@@ -71,7 +71,8 @@ only read.
 - a status bar with a progress bar and a Cancel button while a hive is opened, an image is
   searched for hives, or a search or timeline runs; the window stays usable meanwhile
 - light and dark looks, from the switch in the header or View > Dark Mode, remembered between
-  runs; until one is chosen it follows the system. The logo is read from `assets/` (left out
+  runs; until one is chosen it follows the system's setting where it can read it
+(macOS, Windows, and GNOME's setting on Linux), otherwise light. The logo is read from `assets/` (left out
   when that folder is missing)
 - a Report menu: add keys (with or without their subkeys) and export them as one HTML file with
   each key's times and values, the raw bytes if you want them, and an Interpreted column. That
