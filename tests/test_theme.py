@@ -23,14 +23,16 @@ def listbox():
     colour = root.tk.call(f'{popdown}.f.l', 'cget', '-background')
     return list(root.winfo_rgb(colour))   # 'white' and '#ffffff' are the same colour
 
+theme.apply(False)
 light = listbox()                # opened once in light mode
 theme.apply(True)
 dark = listbox()                 # then in dark mode
 theme.apply(False)
 back = listbox()                 # and in light mode again
 field = list(root.winfo_rgb(regfprobe_theme.DARK['field']))
+light_field = list(root.winfo_rgb(regfprobe_theme.LIGHT['field']))
 root.destroy()
-print(json.dumps({'light': light, 'dark': dark, 'back': back, 'field': field}))
+print(json.dumps({'light': light, 'dark': dark, 'back': back, 'field': field, 'light_field': light_field}))
 '''
 
 
@@ -53,6 +55,7 @@ class ThemeTest(unittest.TestCase):
             self.fail(f'theme check failed ({done.returncode}): {done.stderr[-500:]}')
         seen = json.loads(done.stdout)
         self.assertEqual(seen['dark'], seen['field'])
+        self.assertEqual(seen['light'], seen['light_field'])
         self.assertEqual(seen['back'], seen['light'])
         self.assertNotEqual(seen['light'], seen['dark'])
 

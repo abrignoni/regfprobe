@@ -103,10 +103,18 @@ jobs:
           COMMON=(--noconfirm --clean --paths _probes --hidden-import qnxprobe --hidden-import ewfprobe
                   --python-option "X utf8")
           python -m PyInstaller "${COMMON[@]}" --onefile --console --name regfprobe regfprobe.py
+          # the window carries its logo and icons; the program icon is per system
+          case "$RUNNER_OS" in
+            Windows) ICON=assets/regfprobe.ico ;;
+            macOS) ICON=assets/regfprobe.icns ;;
+            *) ICON=NONE ;;
+          esac
+          # (a tag from before the window had a logo has no assets folder)
+          if [ -d assets ]; then WINDOW=(--add-data "assets:assets" --hidden-import regfprobe_theme --icon "$ICON"); else WINDOW=(); fi
           if [ "$RUNNER_OS" = "macOS" ]; then
-            python -m PyInstaller "${COMMON[@]}" --windowed --onedir --name regfprobe-window regfprobe_gui.py
+            python -m PyInstaller "${COMMON[@]}" "${WINDOW[@]}" --windowed --onedir --name regfprobe-window regfprobe_gui.py
           else
-            python -m PyInstaller "${COMMON[@]}" --windowed --onefile --name regfprobe-window regfprobe_gui.py
+            python -m PyInstaller "${COMMON[@]}" "${WINDOW[@]}" --windowed --onefile --name regfprobe-window regfprobe_gui.py
           fi
           ls -la dist
       - name: Check the binaries against the source

@@ -73,6 +73,9 @@ def main():
                 report = json.loads(out)
                 check(report.get('window') == 'built' and report.get('root_subkeys_shown', 0) > 0
                       and report.get('values_shown', 0) > 0, f'window loaded the hive: {report}')
+                if 'logo' in report:   # a window from before the logo does not report one
+                    check(report['logo'] is True and report.get('icon') is True,
+                          f'window has its logo and icon: {report}')
             else:
                 print('note  the window printed nothing (a windowed Windows build has no stdout)')
     print(f'{len(FAILED)} failed')
