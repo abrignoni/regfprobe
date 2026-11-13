@@ -37,7 +37,7 @@ import sys
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 
-__version__ = '0.2.1'
+__version__ = '0.3.0'
 
 __all__ = ['Hive', 'Key', 'Value', 'RegfError', 'KeyNotFound', 'ValueNotFound', 'open_hive',
            'find_logs', 'recover', 'filetime_to_datetime', 'REG_TYPES', 'CompatRegistry',
