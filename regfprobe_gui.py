@@ -161,15 +161,21 @@ class Window:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self._menus()
         self._shortcuts()
         root.protocol('WM_DELETE_WINDOW', self.close)
-        if self.dark_var.get():
-            self.set_dark(True)
+        self.set_dark(self.dark_var.get())
         root.after(100, self._drain)
 
     # -- layout -----------------------------------------------------------------------------
 
     def _build(self):
         self.theme = regfprobe_theme.Theme(self.root)
+        self.theme.apply(bool(self.settings.get('dark', False)))
+        assets = regfprobe_theme.assets_dir(os.path.dirname(os.path.abspath(__file__)))
+        self.icon = regfprobe_theme.window_icon(self.root, assets, 'regfprobe')
         self._base_styles()
+        head, _right = self.theme.header(self.root, 'regfprobe',
+                                         f'{regfprobe.__version__}   Windows registry hives, read-only',
+                                         logo_folder=assets, on_mode=self.pick_mode)
+        head.pack(fill='x')
         self._build_widgets()
 
     def _base_styles(self):
@@ -191,7 +197,7 @@ class Window:  # pylint: disable=too-many-instance-attributes,too-many-public-me
     def _build_widgets(self):
 
         # address bar
-        bar = ttk.Frame(self.root, padding=(8, 6, 8, 2))
+        bar = ttk.Frame(self.root, padding=(12, 10, 12, 2))
         bar.pack(fill='x')
         ttk.Label(bar, text='Key').pack(side='left')
         self.address = tk.StringVar()
@@ -202,7 +208,7 @@ class Window:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         ttk.Button(bar, text='Go', command=self.go_to_address).pack(side='left')
 
         # banner: a coloured stripe says how much to trust what follows
-        banner = ttk.Frame(self.root, padding=(8, 2))
+        banner = ttk.Frame(self.root, padding=(12, 6, 12, 2))
         banner.pack(fill='x')
         self.stripe = tk.Frame(banner, width=6, background=_STRIPES['info'])
         self.stripe.pack(side='left', fill='y')
@@ -216,15 +222,15 @@ class Window:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.banner.pack(fill='x')
 
         # status bar (packed before the panes so it keeps its place at the bottom)
-        status = ttk.Frame(self.root, padding=(8, 2, 8, 4))
+        status = ttk.Frame(self.root, padding=(12, 2, 12, 6))
         status.pack(side='bottom', fill='x')
-        self.status = ttk.Label(status, text='Ready')
+        self.status = ttk.Label(status, text='Ready', style='Muted.TLabel')
         self.status.pack(side='left', fill='x', expand=True)
         self.progress = ttk.Progressbar(status, mode='indeterminate', length=160)
         self.cancel_button = ttk.Button(status, text='Cancel', command=self.cancel)
 
         panes = ttk.PanedWindow(self.root, orient='horizontal')
-        panes.pack(fill='both', expand=True, padx=8, pady=4)
+        panes.pack(fill='both', expand=True, padx=12, pady=6)
         self.panes = panes
 
         left = ttk.Frame(panes)
@@ -385,7 +391,8 @@ class Window:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         view.add_command(label='Search', accelerator=f'{_MOD_LABEL}+3', command=lambda: self.tabs.select(2))
         view.add_command(label='Timeline', accelerator=f'{_MOD_LABEL}+4', command=lambda: self.tabs.select(3))
         view.add_separator()
-        self.dark_var = tk.BooleanVar(value=bool(self.settings.get('dark', False)))
+        # no choice saved yet: follow the operating system
+        self.dark_var = tk.BooleanVar(value=bool(self.settings.get('dark', regfprobe_theme.system_dark())))
         view.add_checkbutton(label='Dark Mode', variable=self.dark_var, command=self.toggle_dark)
         menubar.add_cascade(label='View', menu=view)
         helps = tk.Menu(menubar, tearoff=False, name='help')
@@ -1239,6 +1246,11 @@ class Window:  # pylint: disable=too-many-instance-attributes,too-many-public-me
         self.set_dark(self.dark_var.get())
         self.settings['dark'] = self.dark_var.get()
 
+    def pick_mode(self, dark):
+        """The Light / Dark switch in the header: the same as View > Dark Mode."""
+        self.dark_var.set(dark)
+        self.toggle_dark()
+
     def set_dark(self, dark):
         self.theme.apply(dark)
         self._base_styles()   # banner fonts and row height belong to the theme just switched to
@@ -1326,7 +1338,8 @@ def selfcheck(hive_path):
     window = Window(root, settings={})
     copies = []
     window._copy = lambda text, _what: copies.append(text)  # pylint: disable=protected-access
-    report = {'window': 'built', 'menus': window.menubar.index('end') + 1}
+    report = {'window': 'built', 'menus': window.menubar.index('end') + 1,
+              'logo': window.theme.logo is not None, 'icon': window.icon}
     if hive_path:
         window.show_hive(regfprobe.Hive(hive_path))
         first = window.tree.get_children('')[0]

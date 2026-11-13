@@ -8,7 +8,7 @@ or its logs.
 One file, `regfprobe.py`, Python 3.10 or later, standard library only. Nothing to install, no admin rights,
 no mounting. It is meant to be copied into other tools as it is (vendored), the way qnxprobe and
 ewfprobe are copied into the LEAPPs. Optional files put a read-only window over it:
-`regfprobe_gui.py`, its colours in `regfprobe_theme.py`, and its HTML report in
+`regfprobe_gui.py`, its colours and header in `regfprobe_theme.py` (its logo in `assets/`), and its HTML report in
 `regfprobe_report.py` and `regfprobe_interpret.py`, and its key profiles in `regfprobe_profile.py`.
 They are standard library too. A user manual with screenshots is in `docs/manual.html` (also
 `docs/manual.pdf`); the window opens it from Help > User Manual or F1.
@@ -70,7 +70,9 @@ only read.
   shown 1000 rows at a time, and saved to CSV whole
 - a status bar with a progress bar and a Cancel button while a hive is opened, an image is
   searched for hives, or a search or timeline runs; the window stays usable meanwhile
-- View > Dark Mode, remembered between runs
+- light and dark looks, from the switch in the header or View > Dark Mode, remembered between
+  runs; until one is chosen it follows the system. The logo is read from `assets/` (left out
+  when that folder is missing)
 - a Report menu: add keys (with or without their subkeys) and export them as one HTML file with
   each key's times and values, the raw bytes if you want them, and an Interpreted column. That
   column decodes only SAM layouts with a published source (the user F and V values, the alias C
@@ -268,7 +270,7 @@ regfprobe does not decode the `settings.dat` composite types. A tool that needs 
 ## Vendoring
 
 Copy `regfprobe.py` verbatim (and `regfprobe_gui.py`, `regfprobe_theme.py`, `regfprobe_report.py`
-and `regfprobe_interpret.py`, plus `regfprobe_profile.py` for key profiles, if you want the window), keep `LICENSE`
+and `regfprobe_interpret.py`, plus `regfprobe_profile.py` for key profiles and `assets/` for the logo, if you want the window), keep `LICENSE`
 beside it as `LICENSE-regfprobe`, and record the commit and SHA-256 you copied. Fix problems
 here and copy again, so the copies do not drift.
 
